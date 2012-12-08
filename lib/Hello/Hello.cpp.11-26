@@ -1,0 +1,385 @@
+//===- Hello.cpp - Example code from "Writing an LLVM Pass" ---------------===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements two versions of the LLVM "Hello World" pass described
+// in docs/WritingAnLLVMPass.html
+//
+//===----------------------------------------------------------------------===//
+
+#define DEBUG_TYPE "hello"
+#include <iostream>
+#include "llvm/Pass.h"
+#include "llvm/Function.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/ProfileInfo.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CFG.h"
+#include "llvm/Analysis/Trace.h"
+#include "LAMP/LAMPLoadProfile.h"
+#include "llvm/ADT/ValueMap.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include<list>
+#include<map>
+using namespace llvm;
+using namespace std;
+//STATISTIC(HelloCounter, "Counts number of functions greeted");
+typedef std::map<std::pair<Instruction*, Instruction*>*, unsigned int> LampMap;
+typedef std::list<BasicBlock *> trace;
+
+namespace {
+  // Hello - The first implementation, without getAnalysisUsage.
+  struct Hello : public FunctionPass {
+    static char ID; // Pass identification, replacement for typeid
+    double threshold;
+    Hello() : FunctionPass(ID) {}
+	ProfileInfo* PI;
+	LAMPLoadProfile * LP;
+	DominatorTree *DT;
+	Function *CurFunc;
+	virtual bool runOnFunction(Function &F) {
+	errs() <<"Running pass...\n";
+	PI = &getAnalysis<ProfileInfo>();
+	DT = &getAnalysis<DominatorTree>();
+	CurFunc = &F;
+	errs()<<"Current function = "<<F.getName()<<"\n";
+	threshold = 60;
+	errs()<<"getting traces...\n";
+	list<trace> traces = getTraces(threshold);
+	errs() << "number of trace = "<<traces.size()<<"\n";
+	std::list<trace>::iterator itr;
+	BasicBlock * side_entrance;
+	for (itr = traces.begin(); itr != traces.end(); ++itr) {
+ 		errs() << "trace length = "<< (*itr).size() <<"\n";
+		printTrace(*itr);
+		side_entrance = getFirstSideEntrance(*itr);
+		if(side_entrance != NULL)
+		{
+			errs()<<"Side entrance = "<<side_entrance->getName();
+			//errs()<<"Calling replicate\n";
+			//replicateRestOfTrace(*itr,side_entrance);
+		}
+	}
+	
+	CurFunc = NULL;
+	errs()<<"Finished\n";
+        return false;
+        }
+	void printTrace(trace t)
+	{
+		errs()<<"Printing trace\n";
+		for(trace::iterator itr = t.begin();itr!=t.end();itr++)
+                {
+                        errs()<<"trace BB = "<<(*itr)->getName()<<"\n";
+                }
+	}
+	bool isPresentInTrace(trace t,BasicBlock* bb)
+	{
+		//if(t==NULL)
+		//	return false;
+		errs()<<"BB name = "<<bb->getName()<<"\n";
+		for(trace::iterator itr = t.begin();itr!=t.end();itr++)
+		{
+			errs()<<"trace BB = "<<(*itr)->getName()<<"\n";
+			if((*itr)->getName() == bb->getName())
+				return true;
+		}
+		return false;
+	}
+	void replicateRestOfTrace(trace t, BasicBlock* side_entrance_block)
+	{
+		std::list<BasicBlock*>::iterator itr = t.begin();
+		
+		std::map<BasicBlock*,BasicBlock*> clone_map;
+		BasicBlock* term_succ;
+		TerminatorInst * term;
+		while(*itr != side_entrance_block)
+			itr++;
+		BasicBlock *copy,*copy_src;
+                for (;itr != t.end(); ++itr) {
+			ValueToValueMapTy vtovmap;
+			errs()<<"Cloning\n";
+			copy = CloneBasicBlock(*itr,vtovmap,"",CurFunc);
+			errs()<<"copy BB name - "<<copy->getName();
+			Value* rhs;
+			for (BasicBlock::iterator II = copy->begin(), ie = copy->end(); II != ie; ++II) {
+			for(int i=0;i<II->getNumOperands();i++)
+                        {
+                                if(vtovmap.find(II->getOperand(i)) != vtovmap.end())
+                                {
+					rhs = vtovmap[II->getOperand(i)];
+                                        errs()<<"Operand found = "<<II->getOperand(i)->getName() <<"rhs = "<<rhs->getName()<<"\n";
+					II->setOperand(i,rhs);
+                                }
+                        }	
+			}
+			clone_map.insert(make_pair(*itr,copy));
+		}
+		errs()<<"Cloned\n";
+		for(pred_iterator itr=pred_begin(side_entrance_block);itr != pred_end(side_entrance_block); itr++)
+		{
+			if(isPresentInTrace(t,*itr))
+			{
+				errs()<<"BB found in Trace\n";
+				continue;
+			}
+			//if(find(t.begin(),t.end(),*itr) != t.end())
+				//continue;
+			errs()<<"Basic block - "<<(*itr)->getName()<<"\n";
+			term = (*itr)->getTerminator();
+			errs()<<"num successors = "<<term->getNumSuccessors()<<"\n";
+			for(unsigned int i=0; i < term->getNumSuccessors(); i++)
+			{
+				term_succ = term->getSuccessor(i);
+				if(term_succ == side_entrance_block)
+				{
+					errs()<<"Set successor\n";
+					term->setSuccessor(i,clone_map[side_entrance_block]);
+					errs()<<"i="<<i<<"\tDone set successor\n";
+				}
+				else
+					errs()<<"i="<<i<<"\tSuccessor not side entrance block\n";
+			}
+		}
+		errs()<<"----\n";
+		itr = t.begin();
+		while(*itr != side_entrance_block)
+                        itr++;
+                for (;itr != t.end(); ++itr) {
+			if(find(t.begin(),t.end(),*itr) == t.end())
+                        {
+				errs()<<"BBBB name = "<<(*itr)->getName()<<" not in trace\n";
+                               //add an edge between the copy and the successor
+        	               copy_src = *itr;
+	                }
+        	      	else
+			{
+				errs()<<"BBBB name = "<<(*itr)->getName()<<" in trace\n";
+                		copy_src = clone_map[*itr];
+				errs()<<"BBBB copy name = "<<copy_src->getName()<<"\n";
+				term = copy_src->getTerminator();
+        	                for(unsigned int i=0; i < term->getNumSuccessors(); i++)
+                	        {
+                        	        term_succ = term->getSuccessor(i);
+					errs()<<"TERM successor = "<<term_succ->getName()<<"\n";
+					if(find(t.begin(),t.end(),term_succ) == t.end() || (clone_map.find(term_succ) == clone_map.end()))
+						continue;
+					errs()<<"setting successor from "<<term_succ->getName()<<" to "<<clone_map[term_succ]->getName()<<"\n";
+                                        term->setSuccessor(i,clone_map[term_succ]);
+					errs()<<"set successor done\n";
+        	                }
+                	}
+		}
+		errs()<<"trace done\n";
+	}
+	BasicBlock* getFirstSideEntrance(trace t)
+	{
+		bool first = false;
+		std::list<BasicBlock*>::iterator itr;
+		std::list<BasicBlock*>::iterator itr2;
+	        for (itr = t.begin(); itr != t.end(); ++itr) {
+			if(!first)
+			{
+				first = true;
+				continue;
+			}
+			for (pred_iterator PI = pred_begin(*itr), E = pred_end(*itr); PI != E; ++PI) {
+				BasicBlock *Pred = *PI;
+				for (itr2 = t.begin(); itr2 != t.end(); ++itr2) {
+					if(*itr2 == Pred)
+						break;
+				}
+				if(itr2 == t.end())
+					return *itr;
+			}
+		}
+		return NULL;
+	}	
+
+	list<trace> getTraces(double threshold)
+	{
+		std::map<BasicBlock*,bool> visited;
+		//initialize map with all BB set to false
+		for(Function::iterator b = CurFunc->begin(), be = CurFunc->end();b!=be;++b){
+			visited.insert(std::pair<BasicBlock*,bool>(b,false));
+		}
+		list<trace> traces;
+		BasicBlock* seed;
+		BasicBlock* current;
+		BasicBlock* next;
+		BasicBlock* prev;
+		while(!all_visited(visited))
+		{
+			trace curTrace;
+			seed = getMostVisited(visited);
+			errs()<<"seed = "<<seed->getName()<<"\n";
+			curTrace.push_back(seed);
+			if(visited.find(seed) != visited.end())
+				visited.erase(visited.find(seed));
+			visited.insert(std::pair<BasicBlock*,bool>(seed,true));
+			current =seed;
+			while(true)
+			{
+				next = best_successor(current,threshold,visited);
+				if(next == NULL)
+					break;
+				curTrace.push_back(next);
+				if(visited.find(next) != visited.end())
+	                                visited.erase(visited.find(next));
+				visited.insert(std::pair<BasicBlock*,bool>(next,true));
+				current = next;
+			}
+			current = seed;
+			while(true)
+                        {
+                                prev = best_predecessor(current,threshold,visited);
+                                if(prev == NULL)
+                                        break;
+                                curTrace.push_front(prev);
+				if(visited.find(prev) != visited.end())
+	                                visited.erase(visited.find(prev));
+                                visited.insert(std::pair<BasicBlock*,bool>(prev,true));
+                                current = prev;
+                        }
+			traces.push_back(curTrace);
+		}
+		errs()<<"Finished get traces\n";
+		return traces;
+	}
+	BasicBlock* getMostVisited(map<BasicBlock*,bool> visited)
+	{
+		int max = -1;
+		BasicBlock * seed = NULL;
+		errs()<<"Inside get most visited...\n";
+		for (map<BasicBlock*,bool>::iterator iter = visited.begin(); iter != visited.end(); iter++){
+			if(iter->second == true)
+				continue;
+			if(PI->getExecutionCount(iter->first) > max){
+				max = PI->getExecutionCount(iter->first);
+				seed = iter->first;
+			}
+		}
+		errs()<<"Finished get most visited\n";
+		return seed;
+	}
+	bool all_visited(map<BasicBlock*,bool> visited)
+	{
+		for (map<BasicBlock*,bool>::iterator iter = visited.begin(); iter != visited.end(); iter++) {
+			if(iter->second == false)
+				return false;
+		}
+		return true;
+	}
+	BasicBlock* best_successor(BasicBlock* source,double threshold,map<BasicBlock*,bool> visited)
+	{
+		errs()<<"Inside best successor\n";
+		double total_weight = 0;
+                double max_weight = 0;
+		BasicBlock* max_succ=NULL;
+		double edge_weight,bias_percent;
+//		if(b->getTerminator()->getNumSuccessors() <= 1)
+//                        continue;
+                int exec_count = PI->getExecutionCount(source);
+                if (exec_count <= 0)
+		{
+			errs()<<"Finished best successor\n";
+                        return NULL;
+		}
+                for (succ_iterator S = succ_begin(source), E = succ_end(source); S != E; ++S) {
+                        BasicBlock *dest = *S;
+                        edge_weight = PI->getEdgeWeight(PI->getEdge(source,dest));
+                        if(edge_weight == -1)
+                                continue;
+                        else if(max_weight < edge_weight)
+			{
+                                max_weight = edge_weight;
+				max_succ = dest;
+			}
+                        total_weight += edge_weight;
+                }
+		if(total_weight == 0)
+		{
+			errs()<<"Finished best successor\n";	
+			return NULL;
+		}
+		else
+		{
+			bias_percent = (max_weight/total_weight)*100;
+			if(bias_percent < threshold || visited[max_succ] || DT->dominates(max_succ,source))
+			{
+				errs()<<"Finished best successor\n";
+				return NULL;
+			}
+			else
+			{
+				errs()<<"Finished best successor\n";
+				return max_succ;
+			}
+		}
+		errs()<<"Finished best successor\n";
+	}
+	BasicBlock* best_predecessor(BasicBlock* source,double threshold,map<BasicBlock*,bool> visited)
+        {
+		errs()<<"Inside get predecessor\n";
+                double total_weight = 0;
+                double max_weight = 0;
+		double edge_weight,bias_percent;
+                BasicBlock* max_pred=NULL;
+		int exec_count = PI->getExecutionCount(source);
+                if (exec_count <= 0)
+		{
+			errs()<<"Finished get predecessor\n";
+                        return NULL;
+		}
+                for (pred_iterator S = pred_begin(source), E = pred_end(source); S != E; ++S) {
+                        BasicBlock *dest = *S;
+                        edge_weight = PI->getEdgeWeight(PI->getEdge(dest,source));
+                        if(edge_weight == -1)
+                                continue;
+                        else if(max_weight < edge_weight)
+                        {
+                                max_weight = edge_weight;
+                                max_pred = dest;
+                        }
+                        total_weight += edge_weight;
+                }
+                if(total_weight == 0)
+		{
+			errs()<<"Finished get predecessor\n";
+                        return NULL;
+		}
+                else
+                {
+                        bias_percent = (max_weight/total_weight)*100;
+                        if(bias_percent < threshold || visited[max_pred] ||  DT->dominates(source,max_pred))
+			{
+				errs()<<"Finished get predecessor\n";
+                                return NULL;
+			}
+                        else
+			{
+				errs()<<"Finished get predecessor\n";
+                                return max_pred;
+			}
+                }
+		errs()<<"Finished get predecessor\n";
+        }
+
+	void getAnalysisUsage(AnalysisUsage &AU) const {
+		AU.addRequired<ProfileInfo>();
+		AU.addRequired<LAMPLoadProfile>();
+		AU.setPreservesCFG();
+	        AU.addRequired<DominatorTree>();
+	}
+  };
+}
+
+char Hello::ID = 0;
+static RegisterPass<Hello> X("hello", "Hello World Pass");

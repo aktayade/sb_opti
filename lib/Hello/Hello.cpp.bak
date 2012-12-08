@@ -1,0 +1,166 @@
+//===- Hello.cpp - Example code from "Writing an LLVM Pass" ---------------===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements two versions of the LLVM "Hello World" pass described
+// in docs/WritingAnLLVMPass.html
+//
+//===----------------------------------------------------------------------===//
+
+#define DEBUG_TYPE "hello"
+#include <iostream>
+#include "llvm/Pass.h"
+#include "llvm/Function.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/ProfileInfo.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CFG.h"
+#include "LAMP/LAMPLoadProfile.h"
+
+using namespace llvm;
+using namespace std;
+STATISTIC(HelloCounter, "Counts number of functions greeted");
+typedef std::map<std::pair<Instruction*, Instruction*>*, unsigned int> LampMap;
+
+namespace {
+  // Hello - The first implementation, without getAnalysisUsage.
+  struct Hello : public FunctionPass {
+    static char ID; // Pass identification, replacement for typeid
+    Hello() : FunctionPass(ID) {}
+	ProfileInfo* PI;
+	LAMPLoadProfile * LP;
+    virtual bool runOnFunction(Function &F) {
+	++HelloCounter;
+	PI = &getAnalysis<ProfileInfo>();
+        double branchCount = 0,floatCount=0,intCount=0,memCount=0,otherCount=0,branchPercent,floatPercent,intPercent,memPercent,otherPercent,totalCount = 0,total_weight,max_weight,edge_weight,execution_count,total_branch=0,bias_percent;
+	int histogram[11] = {0};
+	int opcode;
+	FILE *fp;
+        for(Function::iterator b = F.begin(), be = F.end();b!=be;++b)
+        {	
+                for(BasicBlock::iterator i = b->begin(), ie = b->end(); i!=ie; i++)
+                {
+			opcode = i->getOpcode();
+			execution_count = PI->getExecutionCount(b);
+			if(execution_count == -1)
+				continue;
+                        if(opcode>=1 && opcode<=7)
+                        {
+                                branchCount += execution_count;
+                        }
+			else if(opcode==9||opcode==11||opcode==13||opcode==16||opcode==19||opcode==36||opcode==37||opcode==40||opcode==41||opcode==46)
+			{
+				floatCount += execution_count;
+			}
+			else if(opcode == 8 || opcode == 10 || opcode == 12 || opcode == 14 || opcode == 15 || opcode == 17 || opcode == 18 || (opcode >= 20 && opcode <= 25) || (opcode >= 33 && opcode <= 35) || opcode == 38 || opcode == 39 || (opcode >= 42 && opcode <=45))
+			{
+				intCount += execution_count;
+			}
+			else if(opcode >= 26 && opcode <=32)
+			{
+				memCount += execution_count;
+			}
+			else
+			{
+				otherCount += execution_count;
+			}
+			totalCount += execution_count;
+			
+                }
+        }
+	branchPercent = (branchCount/totalCount)*100;
+	intPercent = (intCount/totalCount)*100;
+	floatPercent = (floatCount/totalCount)*100;
+	memPercent = (memCount/totalCount)*100;
+	otherPercent = (otherCount/totalCount)*100;
+	fp = fopen("benchmark.opcstats","a");
+	fprintf(fp,"%s\t%f\t%f\t%f\t%f\t%f\t%f\n",F.getName().str().c_str(),totalCount,intPercent,floatPercent,memPercent,branchPercent,otherPercent);
+	fclose(fp);
+
+	//branch bias
+	for(Function::iterator b = F.begin(), be = F.end();b!=be;++b)
+        {
+		total_weight = 0;
+		max_weight = 0;
+		//br_count = 0;
+		//BasicBlock *source = dyn_cast<BasicBlock>(&*b);
+		/*if(succ_begin(source) == succ_end(source))
+			continue;*/
+		if(b->getTerminator()->getNumSuccessors() <= 1)
+			continue;
+		int exec_count = PI->getExecutionCount(b);
+		if (exec_count <= 0) 
+			continue;
+		for (succ_iterator S = succ_begin(b), E = succ_end(b); S != E; ++S) {
+			BasicBlock *dest = *S;
+			edge_weight = PI->getEdgeWeight(PI->getEdge(b,dest));
+			if(edge_weight == -1)
+				continue;
+			else if(max_weight < edge_weight)
+				max_weight = edge_weight;
+			total_weight += edge_weight;
+		}
+		//if(total_weight == max_weight)
+		//	continue;
+		bias_percent = (max_weight/total_weight)*100;
+		if(bias_percent >=50 && bias_percent< 60)
+			histogram[6]+=exec_count;
+		else if(bias_percent >=60 && bias_percent< 70)
+			histogram[7]+=exec_count;
+		else if(bias_percent >=70 && bias_percent< 80)
+			histogram[8]+=exec_count;
+		else if(bias_percent >=80 && bias_percent< 90)
+			histogram[9]+=exec_count;
+		else if(bias_percent >=90 && bias_percent<=100)
+			histogram[10]+=exec_count;
+		//histogram[(int)(ceil((max_weight/total_weight)*10))]++;
+		total_branch+=exec_count;
+	}
+	fp = fopen("benchmark.brstats","a");
+        fprintf(fp,"%s\t%d\t%d\t%d\t%d\t%d\t%d\n",F.getName().str().c_str(),(int)total_branch,histogram[6],histogram[7],histogram[8],histogram[9],histogram[10]);
+        fclose(fp);
+	if(HelloCounter == 1)
+	{
+	fp = fopen("benchmark.ldstats","a");
+	LP = &getAnalysis<LAMPLoadProfile>();
+	LampMap LPMap = LP->DepToTimesMap; //pair of instructions to times
+        map<Instruction*, unsigned int> InstToIdMap = LP->InstToIdMap; //maps instruction to id
+	map<unsigned int, Instruction*> IdToInstMap = LP->IdToInstMap;
+        LampMap::iterator i;
+        map<int, int> InstructionMap;
+	map<int, double> alias_count;
+        for (i = LPMap.begin(); i != LPMap.end(); i++)
+	{
+        	std::pair<Instruction*, Instruction*>* s = i->first;
+                int instId1 = InstToIdMap[s->first];
+		//int instId2 = InstToIdMap[s->second];
+		alias_count[instId1] += i->second;
+		//errs() << instId1 <<" || "<< instId2 << " || "<< i->second <<"\n";
+        }
+	map<int,double>::iterator ke;
+	for(ke = alias_count.begin(); ke != alias_count.end(); ke++)
+	{
+		//errs() << ke->first <<"\t" << ke->second/PI->getExecutionCount(IdToInstMap[ke->first]->getParent()) <<"\n";
+		if(PI->getExecutionCount(IdToInstMap[ke->first]->getParent()) == 0 )
+			continue;
+		fprintf(fp,"%d\t%f\n",ke->first,ke->second/PI->getExecutionCount(IdToInstMap[ke->first]->getParent()));
+	}
+	fclose(fp);
+	}
+        return false;
+    }
+	void getAnalysisUsage(AnalysisUsage &AU) const {
+		AU.addRequired<ProfileInfo>();
+		AU.addRequired<LAMPLoadProfile>();
+	}
+  };
+}
+
+char Hello::ID = 0;
+static RegisterPass<Hello> X("hello", "Hello World Pass");

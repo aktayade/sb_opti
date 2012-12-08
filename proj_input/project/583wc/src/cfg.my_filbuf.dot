@@ -1,0 +1,10 @@
+digraph "CFG for 'my_filbuf' function" {
+	label="CFG for 'my_filbuf' function";
+
+	Node0x250ef70 [shape=record,label="{entry:\l  %F.addr = alloca %struct._IO_FILE*, align 8\l  store %struct._IO_FILE* %F, %struct._IO_FILE** %F.addr, align 8\l  %0 = load %struct._IO_FILE** %F.addr, align 8\l  %call = call i64 @fread(i8* getelementptr inbounds ([8192 x i8]* @buffer, i32 0, i32 0), i64 1, i64 8192, %struct._IO_FILE* %0)\l  %conv = trunc i64 %call to i32\l  store i32 %conv, i32* @bufcount, align 4\l  store i32 0, i32* @bufcurrent, align 4\l  %1 = load %struct._IO_FILE** %F.addr, align 8\l  %call1 = call i32 @feof(%struct._IO_FILE* %1) nounwind\l  %tobool = icmp ne i32 %call1, 0\l  br i1 %tobool, label %if.then, label %if.end\l|{<s0>T|<s1>F}}"];
+	Node0x250ef70:s0 -> Node0x250efd0;
+	Node0x250ef70:s1 -> Node0x250f030;
+	Node0x250efd0 [shape=record,label="{if.then:                                          \l  %2 = load i32* @bufcount, align 4\l  %inc = add nsw i32 %2, 1\l  store i32 %inc, i32* @bufcount, align 4\l  %idxprom = sext i32 %2 to i64\l  %arrayidx = getelementptr inbounds [8192 x i8]* @buffer, i32 0, i64 %idxprom\l  store i8 -1, i8* %arrayidx, align 1\l  br label %if.end\l}"];
+	Node0x250efd0 -> Node0x250f030;
+	Node0x250f030 [shape=record,label="{if.end:                                           \l  ret void\l}"];
+}

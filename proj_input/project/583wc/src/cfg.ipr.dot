@@ -1,0 +1,5 @@
+digraph "CFG for 'ipr' function" {
+	label="CFG for 'ipr' function";
+
+	Node0x25298f0 [shape=record,label="{entry:\l  %num.addr = alloca i64, align 8\l  store i64 %num, i64* %num.addr, align 8\l  %0 = load i64* %num.addr, align 8\l  %call = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([6 x i8]* @.str9, i32 0, i32 0), i64 %0)\l  ret void\l}"];
+}
