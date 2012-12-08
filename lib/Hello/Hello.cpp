@@ -48,42 +48,41 @@ namespace {
 	DominatorTree *DT;
 	Function *CurFunc;
 	virtual bool runOnFunction(Function &F) {
-	//errs() <<"Running pass...\n";
-	PI = &getAnalysis<ProfileInfo>();
-	DT = &getAnalysis<DominatorTree>();
-	CurFunc = &F;
-	//errs()<<"Current function = "<<F.getName()<<"\n";
-	threshold = 60;
-	//errs()<<"getting traces...\n";
-	list<trace> traces = getTraces(threshold);
-	//errs() << "number of trace = "<<traces.size()<<"\n";
-	std::list<trace>::iterator itr;
-	BasicBlock * side_entrance;
-	for (itr = traces.begin(); itr != traces.end(); ++itr) {
- 		//errs() << "trace length = "<< (*itr).size() <<"\n";
-		printTrace(*itr);
-		side_entrance = getFirstSideEntrance(*itr);
-		if(side_entrance != NULL)
-		{
-			//errs()<<"Side entrance = "<<side_entrance->getName()<<"\n";
-			//errs()<<"Calling replicate\n";
-			replicateRestOfTrace(*itr,side_entrance);
+		//errs() <<"Running pass...\n";
+		PI = &getAnalysis<ProfileInfo>();
+		DT = &getAnalysis<DominatorTree>();
+		CurFunc = &F;
+		//errs()<<"Current function = "<<F.getName()<<"\n";
+		threshold = 60;
+		//errs()<<"getting traces...\n";
+		list<trace> traces = getTraces(threshold);
+		//errs() << "number of trace = "<<traces.size()<<"\n";
+		std::list<trace>::iterator itr;
+		BasicBlock * side_entrance;
+		for (itr = traces.begin(); itr != traces.end(); ++itr) {
+ 			//errs() << "trace length = "<< (*itr).size() <<"\n";
+			printTrace(*itr);
+			side_entrance = getFirstSideEntrance(*itr);
+			if(side_entrance != NULL)
+			{
+				//errs()<<"Side entrance = "<<side_entrance->getName()<<"\n";
+				//errs()<<"Calling replicate\n";
+				replicateRestOfTrace(*itr,side_entrance);
+			}
 		}
-	}
-//	operationMigration(traces);
-	
-	CurFunc = NULL;
-	errs()<<"Finished\n";
-        return false;
+		operationMigration(traces);
+		CurFunc = NULL;
+		errs()<<"Finished\n";
+	        return false;
         }
 	void operationMigration(list<trace> traces){
 		std::list<trace>::iterator itr;
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
-	                //errs() << "trace length = "<< (*itr).size() <<"\n";
-                    errs()<<"===============================================================================\n";
+		        //errs() << "trace length = "<< (*itr).size() <<"\n";
+                 	errs()<<"===============================================================================\n";
         	        printTrace(*itr);
-                    if((*itr).size() == 1)
-                        continue;
+                	if((*itr).size() == 1)
+                        	continue;
 			migrate(*itr);
 		}
 	}
@@ -93,10 +92,8 @@ namespace {
 		bool inside_trace = false;
 		for(itr = t.begin();itr != t.end();itr++){
 			for(BasicBlock::iterator II = (*itr)->begin();II!=(*itr)->end();II++){
-
 				errs() << "Opcode = " << II->getOpcode() << "\n";
-                if((II->getOpcode() >= 1 && II->getOpcode() <= 7)
-					|| (II->getOpcode()>=26 && II->getOpcode()<=32) || II->getOpcode() == 48)
+		                if((II->getOpcode() >= 1 && II->getOpcode() <= 7) || (II->getOpcode()>=26 && II->getOpcode()<=32) || II->getOpcode() == 48)
 					continue;
 				lhs = (Value*)II;
 				errs() << "Value of lhs: " << lhs->getName() << "\n";
@@ -116,144 +113,160 @@ namespace {
 					//II can be migrated
 					errs() << *II << " Operation found of migration. Parent is "<<II->getParent()<<"\n";
 					moveOut(&(*II),t);
-                    errs()<<"Moveout done\n";
-                    return;
-                    //break;
+			                errs()<<"Moveout done\n";
+                    			return;
+			                //break;
 				}
-                errs()<<"inner for\n";
+	                	errs()<<"inner for\n";
 			}
 		}
-        errs()<<"Migrate done for trace\n";
+	        errs()<<"Migrate done for trace\n";
 	}
 	void moveOut(Instruction* II, trace t){
 		list<BasicBlock*>::iterator temp = t.end();
-        --temp;
-        BasicBlock* last_bb = *(temp);
+        	--temp;
+	        BasicBlock* last_bb = *(temp);
 		list<BasicBlock*> successors;
 		Value* lhs = (Value*)II;
 		errs() << lhs->getName() << " is the LHS.\n";
-        unsigned int i;
-        errs() << "Last BB = " << last_bb->getName() << "\n";
+		
+		
+        	unsigned int i;
+		// added on 7-12
+		trace::iterator itr = t.begin();
+		while(*itr != II->getParent()){
+			itr++;
+		}
+		for(;*itr!=last_bb;itr++){
+			for(succ_iterator succ = succ_begin(*itr); succ != succ_end(*itr); succ++){
+				if(find(t.begin(),t.end(),*succ) == t.end()){
+					errs()<<"side exit added : "<<(*succ)->getName()<<"\n";
+					successors.push_back(*succ);
+				}
+			}
+		}
+		// done
+	        errs() << "Last BB = " << last_bb->getName() << "\n";
 		for(succ_iterator succ = succ_begin(last_bb);succ != succ_end(last_bb);succ++){
-		    errs() << "Successor = " << succ->getName() << "\n";	
-            if(find(t.begin(),t.end(),*succ)!=t.end())
-			{
-                bool phi_node_found = false;
+			errs() << "Successor = " << succ->getName() << "\n";
+		        if(find(t.begin(),t.end(),*succ)!=t.end()){
+	                	bool phi_node_found = false;
 				for(BasicBlock::iterator succII = (*succ)->begin();succII!=(*succ)->end();succII++){
 					errs() << succII->getName() << "\n";
-                    if(isa<PHINode>(*succII))
-                    {
-                        Instruction *U = succII;
+        			        if(isa<PHINode>(*succII))
+                    			{
+                        			Instruction *U = succII;
 		                                PHINode *PN = dyn_cast<PHINode>(U);
 						for(i = 0; i < PN->getNumIncomingValues (); i++){
 							if(lhs == PN->getIncomingValue(i)){
-                                phi_node_found = true;
+				                                phi_node_found = true;
 								successors.push_back(*succ);
 								break;
 							}
 						}
 					}
 				}
-                if(!phi_node_found){
-                    errs() << "No Phi node found\n";
-                   for(succ_iterator succ_succ = succ_begin(*succ);succ_succ != succ_end(*succ);succ_succ++){
-                       if(find(t.begin(),t.end(),*succ_succ) == t.end()){
-                           errs() << (*succ_succ)->getName() << " is the successors successor \n";
-                           successors.push_back(*succ_succ);
-                       }
-                   }
-                }
-			 }
-			else{
+		                if(!phi_node_found){
+        	            		errs() << "No Phi node found\n";
+                	   		for(succ_iterator succ_succ = succ_begin(*succ);succ_succ != succ_end(*succ);succ_succ++){
+				                if(find(t.begin(),t.end(),*succ_succ) == t.end()){
+                           				errs() << (*succ_succ)->getName() << " is the successors successor \n";
+			                	        successors.push_back(*succ_succ);
+                       				}
+                   			}
+                	 	}
+			}
+			else { 
 				successors.push_back(*succ);
 			}
-
 		}
-        errs() << "Successors list done.\n";
+	        errs() << "Successors list done.\n";
 		std::map<BasicBlock*,list<Value*> > in_set;
 		std::map<BasicBlock*, Value*> clone_inst;
 		std::list<BasicBlock*> visited;
 		lhs = (Value*)II;
-        IRBuilder<> build_ir(II->getParent());
-
+        	IRBuilder<> build_ir(II->getParent());
 		for(list<BasicBlock*>::iterator itr = successors.begin();itr!=successors.end();itr++){
 			errs() << "Current successor = " << (*itr)->getName() << "\n";
-            Instruction* clone = II->clone();
+		        Instruction* clone = II->clone();
 			errs() << "Instr to migrate: " << (*itr) << "\n";
 			//clone->insertBefore((*itr)->begin());
-            errs()<<"clone inst before insert = "<< *clone << "\n";
-            clone->insertAfter((*itr)->getFirstInsertionPt());
-            build_ir.SetInsertPoint(clone);
-            //AllocaInst * ainst = build_ir.CreateAlloca(clone->getType(),0,"clone");
-            //build_ir.CreateStore(clone, ainst);
-            //LoadInst* ld = build_ir.CreateLoad(ainst,"loaded");
-            //errs()<<"load inst = "<<*ld<<"\tload inst lhs = "<<((Value*)ld)->getName()<<"\n";
-            clone_inst.insert(make_pair(*itr,(Value*)clone));
-            errs()<<"clone inst after insert = "<< *clone << "\n";
-            Value* clone_lhs = (Value*)clone;
-            errs()<<"Value * of II = " << ((Value*)II)->getName() << "\t Value * of clone = "<<clone_lhs<<"\n";
-            errs() << "Clone: " << *((Value*)clone) << " map entry:" << clone_inst[*itr]->getName() << "\n";
-            errs() << *clone << " inserted in basic block "<<clone->getParent()->getName()<<"\n";
-
-            // Rename
+			clone->insertBefore((*itr)->getFirstNonPHI());
+		        errs()<<"clone inst before insert = "<< *clone << "\n";
+		        //clone->insertAfter((*itr)->getFirstInsertionPt());
+            		/*build_ir.SetInsertPoint(clone);
+		        AllocaInst * ainst = build_ir.CreateAlloca(clone->getType(),0,"clone");
+		        build_ir.CreateStore(clone, ainst);
+            		LoadInst* ld = build_ir.CreateLoad(ainst,"loaded");
+		        errs()<<"load inst = "<<*ld<<"\tload inst lhs = "<<((Value*)ld)->getName()<<"\n";
+			*/
+		        clone_inst.insert(make_pair(*itr,(Value*)clone));
+		        errs()<<"clone inst after insert = "<< *clone << "\n";
+		        Value* clone_lhs = (Value*)clone;
+		        errs()<<"Value * of II = " << ((Value*)II)->getName() << "\t Value * of clone = "<<clone_lhs<<"\n";
+		        errs() << "Clone: " << *((Value*)clone) << " map entry:" << clone_inst[*itr]->getName() << "\n";
+		        errs() << *clone << " inserted in basic block "<<clone->getParent()->getName()<<"\n";
+		        // Rename
 			for(BasicBlock::iterator i=(*itr)->begin(); i != (*itr)->end(); i++) {
-                if(isa<PHINode>(*i))
-                {
-                    Instruction *U = i;
-	                PHINode *PN = dyn_cast<PHINode>(U);
-					for(unsigned int j = 0; j < PN->getNumIncomingValues(); j++) {
+        		        if(isa<PHINode>(*i))
+	                	{
+			                Instruction *U = i;
+	                		PHINode *PN = dyn_cast<PHINode>(U);
+					for(unsigned int j = 0; j < PN->getNumIncomingValues(); j++){
 						if(PN->getIncomingValue(j) == lhs){
 							PN->setIncomingValue(j,clone_inst[*itr]);
 							PN->setIncomingBlock(j,*itr);
 						}
 					}
-                } else {
+		               } 
+			       else {
 					for(unsigned int p = 0; p < i->getNumOperands() ; p++){
-                       	if(i->getOperand(p) == lhs){
-                            i->setOperand(p,clone_inst[*itr]);
-	                    }
-        	        }
+			                       	if(i->getOperand(p) == lhs){
+                        				i->setOperand(p,clone_inst[*itr]);
+	                    			}
+        	        		}
 				}
-            }
-        }
-        errs() << "all instructions moved.\n";
-        BasicBlock* parent = II->getParent();
+            		}
+        	}
+	        errs() << "all instructions moved.\n";
+        	BasicBlock* parent = II->getParent();
 		// Delete done after renaming.
-        //II->eraseFromParent();
-        errs()<<"parent of II = "<<parent->getName()<<"\n";
-        for(BasicBlock::iterator instr = parent->begin();instr != parent->end();instr++){
-            errs()<<"instr = "<<*instr<<"\n";
-        }
-        errs() << "original instruction removed. Mow starting BFS for propogating.\n";
+	        //II->eraseFromParent();
+        	errs()<<"parent of II = "<<parent->getName()<<"\n";
+	        for(BasicBlock::iterator instr = parent->begin();instr != parent->end();instr++){
+        		errs()<<"instr = "<<*instr<<"\n";
+        	}
+	        errs() << "original instruction removed. Mow starting BFS for propogating.\n";
 		for(list<BasicBlock*>::iterator itr = successors.begin();itr!=successors.end();itr++){
 			std::queue<BasicBlock*> q;
 			visited.push_back(*itr);
 			q.push(*itr);
-            Value* current_alias = clone_inst[*itr];
-            errs() << "Current Alias = " << current_alias->getName() << "\n";
-            while(!q.empty()){
-//                errs()<<"inside while\n";
+            		Value* current_alias = clone_inst[*itr];
+		        errs() << "Current Alias = " << current_alias->getName() << "\n";
+		        while(!q.empty()){
+//                		errs()<<"inside while\n";
 				BasicBlock* current_block = q.front();
 				q.pop();
 				visited.push_back(current_block);
 				for(BasicBlock::iterator i=current_block->begin(); i != current_block->end(); i++) {
-                    if(isa<PHINode>(*i)){
-                        Instruction *U = i;
-                        PHINode *PN = dyn_cast<PHINode>(U);
-                        for(unsigned int j = 0; j < PN->getNumIncomingValues(); j++) {
-           	                if(PN->getIncomingValue(j) == lhs){
-                                PN->setIncomingValue(j,clone_inst[*itr]);
-                                PN->setIncomingBlock(j,*itr);
-                            }
-                        }
-                    } else {
-                        for(unsigned int p = 0; p < i->getNumOperands() ; p++){
-                            if(i->getOperand(p) == lhs){
-                                errs() << "NOT PRINTED";
-                                i->setOperand(p,current_alias);
-                            }
-                        }
-                    }
+			                if(isa<PHINode>(*i)){
+                        			Instruction *U = i;
+			                        PHINode *PN = dyn_cast<PHINode>(U);
+                        			for(unsigned int j = 0; j < PN->getNumIncomingValues(); j++) {
+			         	        	if(PN->getIncomingValue(j) == lhs){
+				                                PN->setIncomingValue(j,clone_inst[*itr]);
+                                				PN->setIncomingBlock(j,*itr);
+                            				}
+                        			}
+				        } 
+					else {
+			                        for(unsigned int p = 0; p < i->getNumOperands() ; p++){
+                        				if(i->getOperand(p) == lhs){
+				                                errs() << "NOT PRINTED";
+                                				i->setOperand(p,current_alias);
+                            				}
+                        			}
+                    			}	
 					for(succ_iterator succ = succ_begin(current_block); succ != succ_end(current_block); succ++){
 						if(find(visited.begin(),visited.end(),*succ) == visited.end()){
 							q.push(*succ);
@@ -262,8 +275,8 @@ namespace {
 				}
 			}
 		}
-        II->eraseFromParent();
-        errs() << "Finished on our part!\n";
+	        II->eraseFromParent();
+        	errs() << "Finished on our part!\n";
 	}
 	
 	void printTrace(trace t)
@@ -525,17 +538,17 @@ namespace {
 				if(visited.find(next) != visited.end())
 					visited.erase(visited.find(next));
 				visited.insert(std::pair<BasicBlock*,bool>(next,true));
-/*				if(curTrace.size() == 3)
+				if(curTrace.size() == 3)
                     			break;
-*/
+
 				current = next;
 			}
 			current = seed;
 			while(true){   
-/*
+
 	                	if(curTrace.size() == 3)
 	        	            break;
-*/
+
   		          	prev = best_predecessor(current,threshold,visited);
 	        	        if(prev == NULL){
 					//errs()<<"Prev = NULL\n";
