@@ -70,11 +70,93 @@ namespace {
 				replicateRestOfTrace(*itr,side_entrance);
 			}
 		}
-		operationMigration(traces);
+		//operationMigration(traces);
+		loop_unroll(traces);
 		CurFunc = NULL;
 		errs()<<"Finished\n";
 	        return false;
         }
+	void loop_unroll(list<trace> traces){
+		std::list<trace>::iterator itr;
+		for(itr = traces.begin(); itr!= traces.end();++itr){
+			if(hasBackedge(*itr)){
+				errs()<< "trace with backedge -\n";
+				printTrace(*itr);
+				unroll(*itr);
+			}
+		}
+	}
+	void unroll(trace t){
+		std::map<BasicBlock*,BasicBlock*> clone_map;
+                std::map<const Value*, WeakVH> global_vtovmap;
+		BasicBlock* copy;
+		TerminatorInst * term;
+		for(trace::iterator itr = t.begin();itr!=t.end();itr++){
+			ValueToValueMapTy vtovmap;
+                        copy = CloneBasicBlock(*itr,vtovmap,"_copy",CurFunc);
+                        for(ValueToValueMapTy::iterator i = vtovmap.begin(); i != vtovmap.end(); i++ )
+                        {
+                                global_vtovmap.insert(make_pair(i->first,i->second));
+                        }
+			clone_map.insert(make_pair(*itr,copy));
+
+			Value* rhs;
+                        for (BasicBlock::iterator II = copy->begin(), ie = copy->end(); II != ie; ++II) {
+                                for(unsigned int i=0;i<II->getNumOperands();i++)
+                                {
+                                        if(vtovmap.find(II->getOperand(i)) != vtovmap.end())
+                                        {
+                                                rhs = vtovmap[II->getOperand(i)];
+                                                II->setOperand(i,rhs);
+                                        }
+                                }
+                        }				
+		}
+		errs()<<"Cloned\n";
+		for(trace::iterator itr = t.begin();itr!=t.end();itr++){
+			copy = clone_map[*itr];
+			/*for(succ_iterator succ = succ_begin(*itr);succ != succ_end(*itr); succ++){
+				if(find(t.begin(),t.end(),*succ) != t.end()){
+					
+				}*/
+			term = copy->getTerminator();
+			for(unsigned int i=0;i<term->getNumSuccessors();i++){
+				if(find(t.begin(),t.end(),term->getSuccessor(i))!= t.end()){
+					term->setSuccessor(i,clone_map[term->getSuccessor(i)]);	
+				}
+			}	
+		}
+		//remove backedge and point it to copy of for.cond
+		trace::iterator tmp = t.end();
+		tmp--;
+		BasicBlock* last = *(tmp);
+		term = last->getTerminator();
+		for(unsigned int i =0;i<term->getNumSuccessors();i++){
+			if(term->getSuccessor(i) == *(t.begin())){
+				term->setSuccessor(i,clone_map[*(t.begin())]);
+			}
+		}
+		copy = clone_map[last];
+		term = copy->getTerminator();
+		for(unsigned int i =0;i<term->getNumSuccessors();i++){
+                        if(term->getSuccessor(i) == clone_map[*(t.begin())]){
+                                term->setSuccessor(i,*(t.begin()));
+                        }
+                }
+		
+	}
+
+	bool hasBackedge(trace t){
+		trace::iterator tmp = t.end();
+		tmp--;
+		BasicBlock* last = *(tmp);
+		errs()<<"last basic block - "<<last->getName()<<"\n";
+		for(succ_iterator succ = succ_begin(last);succ != succ_end(last);succ++){
+			if(*succ == *(t.begin()))
+				return true;
+		}
+		return false;
+	}
 	void operationMigration(list<trace> traces){
 		std::list<trace>::iterator itr;
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
@@ -311,7 +393,6 @@ namespace {
 		BasicBlock *copy,*copy_src;
 	        for (;itr != t.end(); ++itr) {
 			ValueToValueMapTy vtovmap;
-			//errs()<<"Cloning\n";
 			copy = CloneBasicBlock(*itr,vtovmap,"_copy",CurFunc);
 			for(ValueToValueMapTy::iterator i = vtovmap.begin(); i != vtovmap.end(); i++ )
             		{
@@ -325,7 +406,6 @@ namespace {
                                 	if(vtovmap.find(II->getOperand(i)) != vtovmap.end())
                                 	{
 						rhs = vtovmap[II->getOperand(i)];
-				                //errs()<<"Operand found = "<<II->getOperand(i)->getName() <<"rhs = "<<rhs->getName()<<"\n";
 						II->setOperand(i,rhs);
                 	                }
                         	}	
@@ -538,17 +618,17 @@ namespace {
 				if(visited.find(next) != visited.end())
 					visited.erase(visited.find(next));
 				visited.insert(std::pair<BasicBlock*,bool>(next,true));
-				if(curTrace.size() == 3)
+/*				if(curTrace.size() == 3)
                     			break;
-
+*/
 				current = next;
 			}
 			current = seed;
 			while(true){   
-
+/*
 	                	if(curTrace.size() == 3)
 	        	            break;
-
+*/
   		          	prev = best_predecessor(current,threshold,visited);
 	        	        if(prev == NULL){
 					//errs()<<"Prev = NULL\n";
