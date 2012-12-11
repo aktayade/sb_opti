@@ -1,5 +1,5 @@
-/net/tawas/y/atayade/llvm31/llvm/projects/project1/lib/Hello/Debug+Asserts/Hello.o \
- /net/tawas/y/atayade/llvm31/llvm/projects/project1/lib/Hello/Debug+Asserts/Hello.d: \
+/y/students/jezra/llvm/projects/project1/lib/Hello/Debug+Asserts/Hello.o \
+ /y/students/jezra/llvm/projects/project1/lib/Hello/Debug+Asserts/Hello.d: \
  Hello.cpp /n/tawas/y/atayade/llvm31/llvm/include/llvm/Pass.h \
  /n/tawas/y/atayade/llvm31/llvm/include/llvm/PassSupport.h \
  /n/tawas/y/atayade/llvm31/llvm/include/llvm/Pass.h \
