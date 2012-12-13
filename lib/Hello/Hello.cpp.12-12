@@ -29,7 +29,6 @@
 #include "llvm/Instructions.h"
 #include "llvm/Support/IRBuilder.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include <fstream>
 #include<list>
 #include<map>
 #include<queue>
@@ -39,7 +38,7 @@ using namespace std;
 typedef std::map<std::pair<Instruction*, Instruction*>*, unsigned int> LampMap;
 typedef std::list<BasicBlock *> trace;
 
-namespace{
+namespace custom{
   // Hello - The first implementation, without getAnalysisUsage.
   struct Hello : public FunctionPass {
     static char ID; // Pass identification, replacement for typeid
@@ -59,16 +58,9 @@ namespace{
 		//errs()<<"Current function = "<<F.getName()<<"\n";
 		threshold = 60;
 		//errs()<<"getting traces...\n";
-		std::list<trace>::iterator itr;
 		list<trace> traces = getTraces(threshold);
-		writeTracesToFile(traces);
-/*		ofstream os ("data.dat", ios::binary);
-		itr = traces.begin();
-		os << *(itr);
-//		os.write((const char*)traces,traces.size());
-		os.close();*/
 		//errs() << "number of trace = "<<traces.size()<<"\n";
-//		std::list<trace>::iterator itr;
+		std::list<trace>::iterator itr;
 		BasicBlock * side_entrance;
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
  			//errs() << "trace length = "<< (*itr).size() <<"\n";
@@ -87,39 +79,6 @@ namespace{
 		errs()<<"Finished\n";
 	        return false;
         }
-	void writeTracesToFile(list<trace> traces){
-		ofstream os;
-		os.open("superblocks");
-		std::list<trace>::iterator itr;
-		bool first;
-//		char* bbname;
-		for(itr = traces.begin(); itr!=traces.end();itr++){
-			first = false;
-			
-			for(trace::iterator bb = (*itr).begin(); bb != (*itr).end(); bb++){
-				const char* bbname = ((*bb)->getName()).data();
-				if(!first){
-					first = true;
-					os<<bbname;
-				}
-				else
-				{
-					os <<" ";
-					os<<bbname;
-				}
-			}
-			if(hasBackedge(*itr)){
-				os << " ";
-				os <<"yes";
-			}
-			else{
-				os << " ";
-				os << "no";
-			}
-			os << "\n";
-		}
-		os.close();
-	}
 	void loop_unroll(list<trace> traces){
 		std::list<trace>::iterator itr;
 		for(itr = traces.begin(); itr!= traces.end();++itr){
@@ -867,5 +826,5 @@ namespace{
   };
 }
 
-char Hello::ID = 0;
-static RegisterPass<Hello> X("hello", "Hello World Pass");
+char custom::Hello::ID = 0;
+static RegisterPass<custom::Hello> X("hello", "Hello World Pass");

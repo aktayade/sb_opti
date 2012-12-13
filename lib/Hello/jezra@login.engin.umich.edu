@@ -28,8 +28,6 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Instructions.h"
 #include "llvm/Support/IRBuilder.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include <fstream>
 #include<list>
 #include<map>
 #include<queue>
@@ -39,7 +37,7 @@ using namespace std;
 typedef std::map<std::pair<Instruction*, Instruction*>*, unsigned int> LampMap;
 typedef std::list<BasicBlock *> trace;
 
-namespace{
+namespace {
   // Hello - The first implementation, without getAnalysisUsage.
   struct Hello : public FunctionPass {
     static char ID; // Pass identification, replacement for typeid
@@ -49,26 +47,17 @@ namespace{
 	LAMPLoadProfile * LP;
 	DominatorTree *DT;
 	Function *CurFunc;
-	LoopInfo *L;
 	virtual bool runOnFunction(Function &F) {
 		//errs() <<"Running pass...\n";
 		PI = &getAnalysis<ProfileInfo>();
 		DT = &getAnalysis<DominatorTree>();
 		CurFunc = &F;
-		L = &getAnalysis<LoopInfo>();
 		//errs()<<"Current function = "<<F.getName()<<"\n";
 		threshold = 60;
 		//errs()<<"getting traces...\n";
-		std::list<trace>::iterator itr;
 		list<trace> traces = getTraces(threshold);
-		writeTracesToFile(traces);
-/*		ofstream os ("data.dat", ios::binary);
-		itr = traces.begin();
-		os << *(itr);
-//		os.write((const char*)traces,traces.size());
-		os.close();*/
 		//errs() << "number of trace = "<<traces.size()<<"\n";
-//		std::list<trace>::iterator itr;
+		std::list<trace>::iterator itr;
 		BasicBlock * side_entrance;
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
  			//errs() << "trace length = "<< (*itr).size() <<"\n";
@@ -87,106 +76,17 @@ namespace{
 		errs()<<"Finished\n";
 	        return false;
         }
-	void writeTracesToFile(list<trace> traces){
-		ofstream os;
-		os.open("superblocks");
-		std::list<trace>::iterator itr;
-		bool first;
-//		char* bbname;
-		for(itr = traces.begin(); itr!=traces.end();itr++){
-			first = false;
-			
-			for(trace::iterator bb = (*itr).begin(); bb != (*itr).end(); bb++){
-				const char* bbname = ((*bb)->getName()).data();
-				if(!first){
-					first = true;
-					os<<bbname;
-				}
-				else
-				{
-					os <<" ";
-					os<<bbname;
-				}
-			}
-			if(hasBackedge(*itr)){
-				os << " ";
-				os <<"yes";
-			}
-			else{
-				os << " ";
-				os << "no";
-			}
-			os << "\n";
-		}
-		os.close();
-	}
 	void loop_unroll(list<trace> traces){
 		std::list<trace>::iterator itr;
 		for(itr = traces.begin(); itr!= traces.end();++itr){
 			if(hasBackedge(*itr)){
 				errs()<< "trace with backedge -\n";
 				printTrace(*itr);
-				unroll(*itr,2);
-//				induction_variable(*itr,2);
+				unroll(*itr);
 			}
 		}
 	}
-	void induction_variable(trace t,int unroll_count){
-		BasicBlock* first = *(t.begin());
-		BasicBlock* p = L->getLoopFor(first)->getLoopPreheader();
-		errs()<<"induction variable = "<<(Value*)(L->getLoopFor(first)->getCanonicalInductionVariable())<<"\n";
-		Value *induc_var, *label, *initialVal, *increment;
-		BasicBlock::iterator temp = (first)->end();
-		temp--;
-		if((temp->getOpcode() >= 1 && temp->getOpcode() <= 7) || (temp->getOpcode()>=26 && temp->getOpcode()<=32) || temp->getOpcode() == 48) {
-                	label = temp->getOperand(0);
-                } else {
-			errs() << "No Branch in first for.cond\n";
-		}
-		// Goto the branch instruction
-		for(BasicBlock::iterator II = first->begin();II!=first->end();II++){
-			if((Value*)II == label){
-				induc_var = II->getOperand(0);
-			}
-		}
-		
-		
-		// Goto the corresponding Phi.
-		for(BasicBlock::iterator II = first->begin();II!=first->end();II++){
-			if(isa<PHINode>(*II) && (induc_var == (Value*)II))
-                        {
-				Instruction *U = II;
-                                PHINode *PN = dyn_cast<PHINode>(U);
-				for(unsigned int i = 0; i < PN->getNumIncomingValues(); i++) {
-					if(PN->getIncomingBlock(i) ==  (BasicBlock *) p) {
-						initialVal = PN->getIncomingValue(i);
-					}
-				}	
-                        }
-                }
-
-		// Get the increment val
-		for(trace::iterator i = t.begin(); i != t.end(); i++) {
-			string block_name = (std::string)(*i)->getName();
-			if(block_name.find("for.inc") != std::string::npos ){
-				for (BasicBlock::iterator II = (*i)->begin(); II != (*i)->end(); II++) {
-					for(unsigned int j = 0; j < II->getNumOperands(); j++){
-						if(II->getOperand(j) == induc_var){
-							if(j == 1) {
-								increment = II->getOperand(0);
-							} else {
-								increment = II->getOperand(1);
-							}
-						}
-					}
-				}
-			}
-		}
-		errs() << "The induction variable is: " << (*induc_var) << "\n";
-		errs() << "The initial value: " << (*initialVal) << "\n";
-		errs() << "The increment is: " << (*increment) << "\n";
-	}
-	void unroll(trace t,int unroll_count){
+	void unroll(trace t){
 		std::map<BasicBlock*,BasicBlock*> clone_map;
                 std::map<const Value*, WeakVH> global_vtovmap;
 		BasicBlock* copy;
@@ -862,7 +762,6 @@ namespace{
 		AU.addRequired<LAMPLoadProfile>();
 		AU.setPreservesCFG();
 	        AU.addRequired<DominatorTree>();
-		AU.addRequired<LoopInfo>();
 	}
   };
 }
