@@ -35,12 +35,10 @@
 #include<queue>
 using namespace llvm;
 using namespace std;
-//STATISTIC(HelloCounter, "Counts number of functions greeted");
 typedef std::map<std::pair<Instruction*, Instruction*>*, unsigned int> LampMap;
 typedef std::list<BasicBlock *> trace;
 
 namespace{
-  // Hello - The first implementation, without getAnalysisUsage.
   struct Hello : public FunctionPass {
     static char ID; // Pass identification, replacement for typeid
     double threshold;
@@ -51,33 +49,20 @@ namespace{
 	Function *CurFunc;
 	LoopInfo *L;
 	virtual bool runOnFunction(Function &F) {
-		//errs() <<"Running pass...\n";
 		PI = &getAnalysis<ProfileInfo>();
 		DT = &getAnalysis<DominatorTree>();
 		CurFunc = &F;
 		L = &getAnalysis<LoopInfo>();
-		//errs()<<"Current function = "<<F.getName()<<"\n";
 		threshold = 60;
-		//errs()<<"getting traces...\n";
 		std::list<trace>::iterator itr;
 		list<trace> traces = getTraces(threshold);
 		writeTracesToFile(traces);
-/*		ofstream os ("data.dat", ios::binary);
-		itr = traces.begin();
-		os << *(itr);
-//		os.write((const char*)traces,traces.size());
-		os.close();*/
-		//errs() << "number of trace = "<<traces.size()<<"\n";
-//		std::list<trace>::iterator itr;
 		BasicBlock * side_entrance;
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
- 			//errs() << "trace length = "<< (*itr).size() <<"\n";
 			printTrace(*itr);
 			side_entrance = getFirstSideEntrance(*itr);
 			if(side_entrance != NULL)
 			{
-				//errs()<<"Side entrance = "<<side_entrance->getName()<<"\n";
-				//errs()<<"Calling replicate\n";
 				replicateRestOfTrace(*itr,side_entrance);
 			}
 		}
@@ -92,7 +77,6 @@ namespace{
 		os.open("superblocks");
 		std::list<trace>::iterator itr;
 		bool first;
-//		char* bbname;
 		for(itr = traces.begin(); itr!=traces.end();itr++){
 			first = false;
 			
@@ -215,10 +199,6 @@ namespace{
 		errs()<<"Cloned\n";
 		for(trace::iterator itr = t.begin();itr!=t.end();itr++){
 			copy = clone_map[*itr];
-			/*for(succ_iterator succ = succ_begin(*itr);succ != succ_end(*itr); succ++){
-				if(find(t.begin(),t.end(),*succ) != t.end()){
-					
-				}*/
 			term = copy->getTerminator();
 			for(unsigned int i=0;i<term->getNumSuccessors();i++){
 				if(find(t.begin(),t.end(),term->getSuccessor(i))!= t.end()){
@@ -260,7 +240,6 @@ namespace{
 	void operationMigration(list<trace> traces){
 		std::list<trace>::iterator itr;
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
-		        //errs() << "trace length = "<< (*itr).size() <<"\n";
                  	errs()<<"===============================================================================\n";
         	        printTrace(*itr);
                 	if((*itr).size() == 1)
@@ -282,8 +261,6 @@ namespace{
 				inside_trace = false;
 				for (Value::use_iterator i = lhs->use_begin(), e = lhs->use_end(); i != e; ++i){
 					if (Instruction *Inst = dyn_cast<Instruction>(*i)) {
-						//errs() << "F is used in instruction:\n";
-						//errs() << *Inst << "\n";
 						if(find(t.begin(),t.end(),Inst->getParent()) != t.end()){
 							inside_trace = true;
 							errs() << *II << "\t used somewhere in the sb. Opcode = " << II->getOpcode()  <<"\n";
@@ -375,13 +352,6 @@ namespace{
 			//clone->insertBefore((*itr)->begin());
 			clone->insertBefore((*itr)->getFirstNonPHI());
 		        errs()<<"clone inst before insert = "<< *clone << "\n";
-		        //clone->insertAfter((*itr)->getFirstInsertionPt());
-            		/*build_ir.SetInsertPoint(clone);
-		        AllocaInst * ainst = build_ir.CreateAlloca(clone->getType(),0,"clone");
-		        build_ir.CreateStore(clone, ainst);
-            		LoadInst* ld = build_ir.CreateLoad(ainst,"loaded");
-		        errs()<<"load inst = "<<*ld<<"\tload inst lhs = "<<((Value*)ld)->getName()<<"\n";
-			*/
 		        clone_inst.insert(make_pair(*itr,(Value*)clone));
 		        errs()<<"clone inst after insert = "<< *clone << "\n";
 		        Value* clone_lhs = (Value*)clone;
@@ -426,7 +396,6 @@ namespace{
             		Value* current_alias = clone_inst[*itr];
 		        errs() << "Current Alias = " << current_alias->getName() << "\n";
 		        while(!q.empty()){
-//                		errs()<<"inside while\n";
 				BasicBlock* current_block = q.front();
 				q.pop();
 				visited.push_back(current_block);
@@ -471,8 +440,6 @@ namespace{
 	}
 	bool isPresentInTrace(trace t,BasicBlock* bb)
 	{
-		//if(t==NULL)
-		//	return false;
 		for(trace::iterator itr = t.begin();itr!=t.end();itr++)
 		{
 			if((*itr)->getName() == bb->getName())
@@ -545,13 +512,10 @@ namespace{
 				term_succ = term->getSuccessor(i);
 				if(term_succ == side_entrance_block)
 				{
-					//errs()<<"Set successor\n";
 					term->setSuccessor(i,clone_map[side_entrance_block]);
-					//errs()<<"i="<<i<<"\tDone set successor\n";
 				}
 				else
 				{
-					//errs()<<"i="<<i<<"\tSuccessor not side entrance block\n";
 				}
 			}
 		}
@@ -559,7 +523,6 @@ namespace{
 		for (BasicBlock::iterator II = clone_map[side_entrance_block]->begin(), ie = clone_map[side_entrance_block]->end(); II != ie; ++II) {
                         if(isa<PHINode>(*II))
                         {
-                                //errs()<<"*******************************Phi node found********************************\n";
                                 Instruction *U = II;
                                 PHINode *PN = dyn_cast<PHINode>(U);
 				for(unsigned int i=0;i< PN->getNumIncomingValues();i++){
@@ -576,22 +539,17 @@ namespace{
 	        for (;itr != t.end(); ++itr) {
 			if(find(t.begin(),t.end(),*itr) == t.end())
                 	{
-				//errs()<<"BBBB name = "<<(*itr)->getName()<<" not in trace\n";
 	        	        copy_src = *itr;
 		        }
         	   	else
 			{
-				//errs()<<"BBBB name = "<<(*itr)->getName()<<" in trace\n";
                 		copy_src = clone_map[*itr];
-				//errs()<<"BBBB copy name = "<<copy_src->getName()<<"\n";
     				term = copy_src->getTerminator();
 	                	for(unsigned int i=0; i < term->getNumSuccessors(); i++)
            	        	{
                	        		term_succ = term->getSuccessor(i);
-			    		//errs()<<"TERM successor = "<<term_succ->getName()<<"\n";
 				    	if(find(t.begin(),t.end(),term_succ) == t.end() || (clone_map.find(term_succ) == clone_map.end()))
 					    	continue;
-    					//errs()<<"setting successor from "<<term_succ->getName()<<" to "<<clone_map[term_succ]->getName()<<"\n";
 		                        term->setSuccessor(i,clone_map[term_succ]);
                 		        for (BasicBlock::iterator II = clone_map[term_succ]->begin(), ie = clone_map[term_succ]->end(); II != ie; ++II)
                         		{
@@ -600,7 +558,6 @@ namespace{
 		                                	if(global_vtovmap.find(II->getOperand(i)) != global_vtovmap.end())
                 		                	{
                                 				Value* rhs = global_vtovmap[II->getOperand(i)];
-				                                //errs()<<"Operand found = "<<II->getOperand(i)->getName() <<"rhs = "<<rhs->getName()<<"\n";
         	                            			II->setOperand(i,rhs);
                 	                		}
                         	    		}
@@ -615,7 +572,6 @@ namespace{
 		                        		                PN->setIncomingBlock(i,copy_src);
                 		                    		}
                                 			}
-	     				        	//errs()<<"set successor done\n";
                             			}
                	        		}
                     		}
