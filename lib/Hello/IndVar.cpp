@@ -33,6 +33,7 @@
 #include<list>
 #include<map>
 #include<queue>
+#include <math.h>
 using namespace llvm;
 using namespace std;
 //STATISTIC(HelloCounter, "Counts number of functions greeted");
@@ -184,76 +185,73 @@ namespace{
 		
 		IRBuilder<> build_ir(p);
 		BasicBlock::iterator preheader_end = p->end();
-                Instruction * secondLast = --preheader_end;
-                build_ir.SetInsertPoint(secondLast);
+        Instruction * secondLast = --preheader_end;
+        build_ir.SetInsertPoint(secondLast);
 		std::map<int,AllocaInst*> induction_map;
-                AllocaInst * ainst = build_ir.CreateAlloca(induc_var->getType(),0,"induction");
-                build_ir.CreateStore(initialVal, ainst);
+        AllocaInst * ainst = build_ir.CreateAlloca(induc_var->getType(),0,"induction");
+        errs() << "The increment is: " << (*increment) << "\n";
+        build_ir.CreateStore(initialVal, ainst);
 		induction_map.insert(make_pair(0,ainst));
 		llvm::ConstantInt* CI = dyn_cast<llvm::ConstantInt>(initialVal);
 		int init_value = CI->getSExtValue();
 		llvm::ConstantInt* CInc = dyn_cast<llvm::ConstantInt>(increment);
-                int inc = CInc->getSExtValue();
-		int ind_initval=init_value;
+        int inc = CInc->getSExtValue();
+        int ind_initval=init_value;
+        int ind_incr;
 		errs()<<"initial = "<<init_value<<"\tinc="<<inc<<"opcode = "<<increment_opcode<<"\n";
 		for(int i = 1;i<unroll_count;i++){
 			if(increment_opcode == 8 || increment_opcode == 9){
-				ind_initval = ind_initval+inc;		
+				ind_initval = ind_initval+inc;
+                ind_incr = inc*unroll_count; 
 			}
 			else if(increment_opcode == 10 || increment_opcode == 11){
 				ind_initval = ind_initval-inc;
+                ind_incr = inc*unroll_count;
 			}
 			else if(increment_opcode == 12 || increment_opcode == 13){
 				ind_initval = ind_initval * inc;
+                ind_incr = (int)pow(inc,unroll_count);
 			}
 			ainst = build_ir.CreateAlloca(induc_var->getType(),0,"induction");
-	                build_ir.CreateStore(ConstantInt::getSigned(Type::getInt32Ty(getGlobalContext()),ind_initval), ainst);
+	        build_ir.CreateStore(ConstantInt::getSigned(Type::getInt32Ty(getGlobalContext()),ind_initval), ainst);
 			induction_map.insert(make_pair(i,ainst));
 		}
-		
+/*	    
+        // Create flag
+        preheader_end = p->end();
+        secondLast = --preheader_end;
+        build_ir.SetInsertPoint(secondLast);
+        AllocaInst * flag = build_ir.CreateAlloca(Type::getInt1Ty(getGlobalContext()),0,"flag");
+        build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
+        
+        BasicBlock* trace_begin = *(t.begin());
+        BasicBlock::iterator trace_bb_end = trace_begin->end();
+        secondLast = --trace_bb_end;
+        build_ir.SetInsertPoint(secondLast);
+        build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
+
+        BasicBlock* trace_last = *(t.end());
+        trace_bb_end = trace_last->end();
+        secondLast = --trace_bb_end;
+        build_ir.SetInsertPoint(secondLast);
+        build_ir.CreateStore(ConstantInt::getTrue(getGlobalContext()), flag);
+*/
 		first = *(t.begin());
 		build_ir.SetInsertPoint(first->getFirstNonPHI());
-               	LoadInst* ld = build_ir.CreateLoad((Value*)induction_map[0]);
+        	LoadInst* ld = build_ir.CreateLoad((Value*)induction_map[0]);
 		std::map<Value*,Value*> orig_induction;
 		orig_induction.insert(make_pair(induc_var,(Value*)ld));
-		/*for (Value::use_iterator i = induc_var->use_begin(), e = induc_var->use_end(); i != e; ++i){
-			errs()<<"inside def use\n";
-			Instruction *Inst = (Instruction*)(*i);
-			errs()<<"inside def use\t*********************************************\n";
-			errs()<<"inst = "<<*Inst<<"\n";
-			if(isa<PHINode>(*i))
-                        {
-				errs()<<"Phi node found \n";
-                                Instruction *U = (Instruction*)(*i);
-                                PHINode *PN = dyn_cast<PHINode>(U);
-                                for(unsigned int k = 0; k < PN->getNumIncomingValues(); k++) {
-                                        if(PN->getIncomingValue(k) ==  induc_var) {
-                                                PN->setIncomingValue(k,(Value*)ld);
-                                        }
-                                }
-                        }
-			else{
-				for(unsigned int j=0;j<Inst->getNumOperands();j++){
-					if(i->getOperand(j) == induc_var){
-						errs()<<"inst = "<<*i<<"\treplace = "<<*((Value*)ld)<<"\n";
-						Inst->setOperand(j,((Value*)ld));
-						errs()<<"updated inst = "<<*i<<"\n";
-					}
-				}
-			}
-  			
-		}*/
 		
-//		induction_inst->eraseFromParent();
 		Value *lhs = (Value*)ld;
 		std::map<int,Value*> unroll_var;
 		std::map<Value*,int> unroll_var_inverse;
+        std::map<Value*,BasicBlock*> rename_BB_map;
 		for(Function::iterator BB = CurFunc->begin(); BB != CurFunc->end();BB++){
 			for(BasicBlock::iterator II = BB->begin(); II != BB->end(); II++){
-				errs()<<"loop starting...\n";
+				errs()<<"loop starting!\n";
 				if(isa<PHINode>(*II)){
 					Instruction *U = II;
-                	                PHINode *PN = dyn_cast<PHINode>(U);
+                	PHINode *PN = dyn_cast<PHINode>(U);
 					for(int op = 0; op < PN->getNumIncomingValues(); op++){
 						if(PN->getIncomingValue(op) == induc_var){
 							errs()<<"replacing op in phi node\n";
@@ -271,13 +269,13 @@ namespace{
 							errs()<<"operand set\n";
 							errs()<<"Instruction = "<<*II<<"\n";
 							string block_name = (std::string)(BB)->getName();
-				                        if(block_name.find("for.inc") != std::string::npos ){
+				            if(block_name.find("for.inc") != std::string::npos ){
 								unroll_var.insert(make_pair(0,(Value*)II));
 								unroll_var_inverse.insert(make_pair((Value*)II,0));
 
 								BasicBlock::iterator preheader_end = BB->end();
-							        Instruction * secondLast = --preheader_end;
-						                build_ir.SetInsertPoint(secondLast);
+		    			        Instruction * secondLast = --preheader_end;
+						        build_ir.SetInsertPoint(secondLast);
 								build_ir.CreateStore((Value*)II, induction_map[0]);
 							}
 						}
@@ -286,82 +284,189 @@ namespace{
 			}
 		}
 		induction_inst->eraseFromParent();
-		std::map<Value*,Value*> lhs_rhs;	
+		std::map<Value*,Value*> renaming_map;
+            
 		for(Function::iterator BB = CurFunc->begin(); BB != CurFunc->end();BB++){
 			string block_name = (std::string)(BB->getName());	
-			if(block_name.find("for.inc") == std::string::npos && block_name.find("for.cond") == std::string::npos ){
-				continue;
-			}
 			if(block_name.find("for.inc") != std::string::npos){
 				for(BasicBlock::iterator II = BB->begin(); II != BB->end(); II++){
 					Value *rhs = II->getOperand(0);
 					
 					if(find(t.begin(),t.end(),BB) != t.end()){
-					}
+					    // If in trace, skip.
+                    }
 					else{
 						int u = unroll_var_inverse[rhs];
 						BasicBlock::iterator preheader_end = BB->end();
-                                                Instruction * secondLast = --preheader_end;
-                                                build_ir.SetInsertPoint(secondLast);
-                                                build_ir.CreateStore((Value*)II, induction_map[u+1]);
+                        Instruction * secondLast = --preheader_end;
+                        build_ir.SetInsertPoint(secondLast);
+                        build_ir.CreateStore((Value*)II, induction_map[u+1]);
 						unroll_var.insert(make_pair(u+1,(Value*)II));
-                                                unroll_var_inverse.insert(make_pair((Value*)II,u+1));
+                        unroll_var_inverse.insert(make_pair((Value*)II,u+1));
 					}
 					break;
-                        	}
+                }
+                Instruction* first_instr = BB->begin();
+                first_instr->setOperand(first_instr->getNumOperands()-1, ConstantInt::getSigned(Type::getInt32Ty(getGlobalContext()),ind_incr));
 			}
 			else if(block_name.find("for.cond") != std::string::npos){
 				if(find(t.begin(),t.end(),BB) != t.end()){
-                                }
+                    // If in trace, skip.
+                }
 				else{
 					BasicBlock::iterator preheader_end = BB->end();
-	                                Instruction * secondLast = --preheader_end;
+	                Instruction * secondLast = --preheader_end;
 					Instruction * thirdLast = --preheader_end;
 					errs()<<"secondlast = "<<*thirdLast<<"\n";	
 					Value *rhs = thirdLast->getOperand(0);
 					int u = unroll_var_inverse[rhs];
+                    errs() << "Current Unroll#: " << u <<"\n";
+                    errs() << "Current RHS#: " << *rhs <<"\n";
 					build_ir.SetInsertPoint(BB->getFirstNonPHI());
-		                	LoadInst* l = build_ir.CreateLoad((Value*)induction_map[u+1]);
+		            errs() << "Inserting Load: " << (*(Value*)induction_map[u+1])<<"\n";
+                    LoadInst* l = build_ir.CreateLoad((Value*)induction_map[u+1]);
 					errs()<<"key = "<<*rhs<<"\tvalue = "<<*((Value*)l)<<"\n";
-					lhs_rhs.insert(make_pair(rhs,(Value*)l));
-					errs()<<",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n";
+					renaming_map.insert(make_pair(rhs,(Value*)l));
+                    rename_BB_map.insert(make_pair((Value*)l, thirdLast->getParent()));
+                    errs()<<",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n";
 				}
 			}
 		}
-		
-
+         
 		for(Function::iterator BB = CurFunc->begin(); BB != CurFunc->end();BB++){
                         for(BasicBlock::iterator II = BB->begin(); II != BB->end(); II++){
                                 if(isa<PHINode>(*II)){
                                         Instruction *U = II;
                                         PHINode *PN = dyn_cast<PHINode>(U);
                                         for(int op = 0; op < PN->getNumIncomingValues(); op++){
-                                                if(lhs_rhs.find(PN->getIncomingValue(op))!= lhs_rhs.end()){
-                                                        //errs()<<"replacing op in phi node\n";
-                                                        //BasicBlock* tmp = PN->getIncomingBlock(op);
-                                                        //PN->removeIncomingValue(op);
-							PN->setIncomingValue(op,lhs_rhs[PN->getIncomingValue(op)]);
-                                                        //PN->addIncoming(lhs_rhs[PN->getIncomingValue(op)],tmp);
-                                                        //errs()<<"Instruction = "<<*II<<"\n";
+                                                if(renaming_map.find(PN->getIncomingValue(op))!= renaming_map.end()){
+                            						errs() << "Trying to rename" << *II << "\n";	
+                                                    PN->setIncomingValue(op,renaming_map[PN->getIncomingValue(op)]);
                                                 }
                                         }
                                 }
                                 else {
                                         for(int op = 0; op < II->getNumOperands(); op++){
-                                                if(lhs_rhs.find(II->getOperand(op)) != lhs_rhs.end()){
-                                                        II->setOperand(op,lhs_rhs[II->getOperand(op)]);
-                                                        //errs()<<"operand set\n";
-                                                        //errs()<<"Instruction = "<<*II<<"\n";
+                                                if(renaming_map.find(II->getOperand(op)) != renaming_map.end() && 
+                                                        DT->dominates(rename_BB_map[renaming_map[II->getOperand(op)]],II->getParent())){
+                                                        II->setOperand(op,renaming_map[II->getOperand(op)]);
+                                                        errs() << "Trying to rename" << *II << "\n";
                                                         string block_name = (std::string)(BB)->getName();
                                         	}
                                 	}
                         	}
                 	}
-		}
+		}	
+	
+        errs() << "Test1 \n";    
+        preheader_end = p->end();
+        secondLast = --preheader_end;
+        build_ir.SetInsertPoint(secondLast);
+        AllocaInst * flag = build_ir.CreateAlloca(Type::getInt1Ty(getGlobalContext()),0,"flag");
+        build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
 
-			
-		
+        errs() << "Test2 \n";  
+        BasicBlock* trace_begin = *(t.begin());
+        BasicBlock::iterator trace_bb_end = trace_begin->end();
+        secondLast = --trace_bb_end;
+        build_ir.SetInsertPoint(secondLast);
+        build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
+
+	errs() << "Test3 \n";
+        trace::iterator ttt = t.end();
+        --ttt;
+        BasicBlock* trace_last = *(ttt);
+        trace_bb_end = trace_last->end();
+        secondLast = --trace_bb_end;
+        errs() << "SecondLast = " << *secondLast << "\n";
+        build_ir.SetInsertPoint(secondLast);
+        build_ir.CreateStore(ConstantInt::getTrue(getGlobalContext()), flag);	
+	
+	BasicBlock* non_trace_start;
+	for(trace::iterator II = t.begin(); II != t.end(); II++) {
+		string block_name = (std::string)(*II)->getName();
+                if(block_name.find("for.body") != std::string::npos ){
+			for(succ_iterator i = succ_begin(*II); i != succ_end(*II); i++){
+				if(find(t.begin(),t.end(),*i) == t.end()){
+					non_trace_start = *i;
+					break;	
+				}
+			}
+		}
 	}
+	std::list<BasicBlock*> visited;
+      	std::queue<BasicBlock*> q;
+        visited.push_back(non_trace_start);
+        q.push(non_trace_start);
+	BasicBlock* modify_block;
+        while(!q.empty()){
+        	BasicBlock* current_block = q.front();
+                q.pop();
+                visited.push_back(current_block);
+        	string block_name = (std::string)current_block->getName();
+                if(block_name.find("for.inc") != std::string::npos ){
+			modify_block = current_block;
+			break;
+		}
+		for(succ_iterator i = succ_begin(current_block); i != succ_end(current_block); i++){
+			q.push(*i);
+		}
+	}
+	ValueToValueMapTy vtovmap;
+	Value* rhs;
+	BasicBlock* modify_block_clone = CloneBasicBlock(modify_block,vtovmap,"_copy",CurFunc);
+	for (BasicBlock::iterator II = modify_block_clone->begin(), ie = modify_block_clone->end(); II != ie; ++II) {
+        	for(unsigned int i=0;i<II->getNumOperands();i++)
+               	{
+                	if(vtovmap.find(II->getOperand(i)) != vtovmap.end())
+                        {
+                        	rhs = vtovmap[II->getOperand(i)];
+                                II->setOperand(i,rhs);
+                        }      	
+               	}
+	}
+	BasicBlock* modify_block_pred = *(pred_begin(modify_block));
+	BasicBlock::iterator home_end = modify_block_pred->end();
+        secondLast = --home_end;
+	build_ir.SetInsertPoint(secondLast);
+	Value* cond  = build_ir.CreateLoad(flag);
+	build_ir.CreateCondBr(cond,modify_block,modify_block_clone);
+        modify_block_pred->getTerminator()->eraseFromParent();
+
+	for(succ_iterator i = succ_begin(modify_block); i != succ_end(modify_block); i++){
+        	for (BasicBlock::iterator II = (*i)->begin(), ie = (*i)->end(); II != ie; ++II) {
+			if(isa<PHINode>(*II))
+                        {
+                                Instruction *U = II;
+                                PHINode *PN = dyn_cast<PHINode>(U);
+                                for(unsigned int i = 0; i < PN->getNumIncomingValues(); i++) {
+                                        if(PN->getIncomingBlock(i) ==  modify_block) {
+                                        	if(vtovmap[PN->getIncomingValue(i)]){
+							PN->addIncoming(vtovmap[PN->getIncomingValue(i)],modify_block_clone);
+							break;
+						} else {
+							PN->addIncoming(PN->getIncomingValue(i),modify_block_clone);	
+						}
+					}
+                                }
+                        }	
+		}
+       	}
+	
+	Instruction* instr = modify_block_clone->begin();
+	instr->setOperand(instr->getNumOperands()-1,ConstantInt::getSigned(Type::getInt32Ty(getGlobalContext()),inc));
+	BasicBlock::iterator asd= modify_block_clone->end();
+	asd--;
+	build_ir.SetInsertPoint(asd);
+	
+        ld = build_ir.CreateLoad((Value*)induction_map[0]);
+	Instruction* inc_instr = instr->clone();
+	inc_instr->insertBefore(asd);
+	inc_instr->setOperand(0,(Value*)ld);
+	build_ir.CreateStore((Value*)ld, induction_map[0]);
+	
+	//instr->setOperand(instr->getNumOperands()-1,ConstantInt::getSigned(Type::getInt32Ty(getGlobalContext()),inc));
+}
 
 	bool hasBackedge(trace t){
 		trace::iterator tmp = t.end();
