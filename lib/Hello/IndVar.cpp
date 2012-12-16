@@ -69,36 +69,46 @@ namespace{
 			printTrace(*itr);
 		}
 
-		errs()<<"Starting induction variable optimization\n";
+	//	errs()<<"Starting induction variable optimization\n";
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
 			if(backedge[*itr]){
-				errs()<<"Current trace : \n";
+	//			errs()<<"Current trace : \n";
 		        	printTrace(*itr);
-				induction_variable(*itr,2);
+				induction_variable(*itr,1);
 			}
                 }
 		CurFunc = NULL;
-		errs()<<"Finished\n";
+	//	errs()<<"Finished\n";
 	        return false;
         }
 	list<trace> readTracesFromFile(){
 		ifstream is ("superblocks");
 		string line,word;
 		list<trace> traces;
+		string function_name;
 		if(is.is_open()){
 			while(is.good()){
 				getline(is,line);
 				int pos = 0;
-				errs()<<"line = "<<line<<"\n";
+	//			errs()<<"line = "<<line<<"\n";
 				if(line.size() == 0){
 					break;
 				}
 				trace t;
+
+				if(line.find("Function") != std::string::npos ){
+                                        function_name = line.substr(9,line.size());
+                                        continue;
+                                }
+                                if(function_name != CurFunc->getName()){
+                                        continue;
+                                }
+
 				while(line.find(" ",pos) != -1){
 					int end = line.find(" ",pos);
-					errs()<< end <<"\t"<<pos<<"\n";	
+	//				errs()<< end <<"\t"<<pos<<"\n";	
 					word = line.substr(pos,end-pos);
-					errs()<<"word = "<<word<<"\n";
+	//				errs()<<"word = "<<word<<"\n";
 					pos = end+1;
 					for (Function::iterator BB = CurFunc->begin(), e = CurFunc->end(); BB != e; ++BB){
 						if(word.compare((BB->getName()).data()) == 0){
@@ -107,7 +117,7 @@ namespace{
 					}
 				}
 				word = line.substr(pos,line.size()-pos);
-				errs()<<"word = "<<word<<"\n";
+	//			errs()<<"word = "<<word<<"\n";
 				if(word.compare("yes")==0){
 					backedge.insert(make_pair(t,true));
 				}
@@ -115,16 +125,17 @@ namespace{
 					backedge.insert(make_pair(t,false));
 				}
 				traces.push_back(t);
-				errs()<<"done\n";
+	//			errs()<<"done\n";
 			}
 		}
 		return traces;
 	}
 	
 	void induction_variable(trace t,int unroll_count){
+		unroll_count = (int)pow(2,unroll_count);
 		BasicBlock* first = *(t.begin());
 		BasicBlock* p = L->getLoopFor(first)->getLoopPreheader();
-		errs()<<"induction variable = "<<(Value*)(L->getLoopFor(first)->getCanonicalInductionVariable())<<"\n";
+	//	errs()<<"induction variable = "<<(Value*)(L->getLoopFor(first)->getCanonicalInductionVariable())<<"\n";
 		Value *induc_var, *label, *initialVal, *increment;
 		BasicBlock::iterator temp = (first)->end();
 		int increment_opcode = -1;
@@ -133,7 +144,7 @@ namespace{
 		if((temp->getOpcode() >= 1 && temp->getOpcode() <= 7) || (temp->getOpcode()>=26 && temp->getOpcode()<=32) || temp->getOpcode() == 48) {
                 	label = temp->getOperand(0);
                 } else {
-			errs() << "No Branch in first for.cond\n";
+	//		errs() << "No Branch in first for.cond\n";
 		}
 		// Goto the branch instruction
 		for(BasicBlock::iterator II = first->begin();II!=first->end();II++){
@@ -179,9 +190,9 @@ namespace{
 			}
 		}
 	
-		errs() << "The induction variable is: " << (*induc_var) << "\n";
-		errs() << "The initial value: " << (*initialVal) << "\n";
-		errs() << "The increment is: " << (*increment) << "\n";
+	//	errs() << "The induction variable is: " << (*induc_var) << "\n";
+	//	errs() << "The initial value: " << (*initialVal) << "\n";
+	//	errs() << "The increment is: " << (*increment) << "\n";
 		
 		IRBuilder<> build_ir(p);
 		BasicBlock::iterator preheader_end = p->end();
@@ -189,7 +200,7 @@ namespace{
         build_ir.SetInsertPoint(secondLast);
 		std::map<int,AllocaInst*> induction_map;
         AllocaInst * ainst = build_ir.CreateAlloca(induc_var->getType(),0,"induction");
-        errs() << "The increment is: " << (*increment) << "\n";
+        //errs() << "The increment is: " << (*increment) << "\n";
         build_ir.CreateStore(initialVal, ainst);
 		induction_map.insert(make_pair(0,ainst));
 		llvm::ConstantInt* CI = dyn_cast<llvm::ConstantInt>(initialVal);
@@ -198,7 +209,7 @@ namespace{
         int inc = CInc->getSExtValue();
         int ind_initval=init_value;
         int ind_incr;
-		errs()<<"initial = "<<init_value<<"\tinc="<<inc<<"opcode = "<<increment_opcode<<"\n";
+	//	errs()<<"initial = "<<init_value<<"\tinc="<<inc<<"opcode = "<<increment_opcode<<"\n";
 		for(int i = 1;i<unroll_count;i++){
 			if(increment_opcode == 8 || increment_opcode == 9){
 				ind_initval = ind_initval+inc;
@@ -216,26 +227,7 @@ namespace{
 	        build_ir.CreateStore(ConstantInt::getSigned(Type::getInt32Ty(getGlobalContext()),ind_initval), ainst);
 			induction_map.insert(make_pair(i,ainst));
 		}
-/*	    
-        // Create flag
-        preheader_end = p->end();
-        secondLast = --preheader_end;
-        build_ir.SetInsertPoint(secondLast);
-        AllocaInst * flag = build_ir.CreateAlloca(Type::getInt1Ty(getGlobalContext()),0,"flag");
-        build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
-        
-        BasicBlock* trace_begin = *(t.begin());
-        BasicBlock::iterator trace_bb_end = trace_begin->end();
-        secondLast = --trace_bb_end;
-        build_ir.SetInsertPoint(secondLast);
-        build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
-
-        BasicBlock* trace_last = *(t.end());
-        trace_bb_end = trace_last->end();
-        secondLast = --trace_bb_end;
-        build_ir.SetInsertPoint(secondLast);
-        build_ir.CreateStore(ConstantInt::getTrue(getGlobalContext()), flag);
-*/
+	    
 		first = *(t.begin());
 		build_ir.SetInsertPoint(first->getFirstNonPHI());
         	LoadInst* ld = build_ir.CreateLoad((Value*)induction_map[0]);
@@ -248,17 +240,17 @@ namespace{
         std::map<Value*,BasicBlock*> rename_BB_map;
 		for(Function::iterator BB = CurFunc->begin(); BB != CurFunc->end();BB++){
 			for(BasicBlock::iterator II = BB->begin(); II != BB->end(); II++){
-				errs()<<"loop starting!\n";
+	//			errs()<<"loop starting!\n";
 				if(isa<PHINode>(*II)){
 					Instruction *U = II;
                 	PHINode *PN = dyn_cast<PHINode>(U);
 					for(int op = 0; op < PN->getNumIncomingValues(); op++){
 						if(PN->getIncomingValue(op) == induc_var){
-							errs()<<"replacing op in phi node\n";
+	//						errs()<<"replacing op in phi node\n";
 							BasicBlock* tmp = PN->getIncomingBlock(op);
 							PN->removeIncomingValue(op);
 							PN->addIncoming(lhs,tmp);
-							errs()<<"Instruction = "<<*II<<"\n";
+	//						errs()<<"Instruction = "<<*II<<"\n";
 						}
 					}
 				}
@@ -266,8 +258,8 @@ namespace{
 					for(int op = 0; op<II->getNumOperands(); op++){
 						if(II->getOperand(op) == induc_var){
 							II->setOperand(op,lhs);
-							errs()<<"operand set\n";
-							errs()<<"Instruction = "<<*II<<"\n";
+	//						errs()<<"operand set\n";
+	//						errs()<<"Instruction = "<<*II<<"\n";
 							string block_name = (std::string)(BB)->getName();
 				            if(block_name.find("for.inc") != std::string::npos ){
 								unroll_var.insert(make_pair(0,(Value*)II));
@@ -317,18 +309,18 @@ namespace{
 					BasicBlock::iterator preheader_end = BB->end();
 	                Instruction * secondLast = --preheader_end;
 					Instruction * thirdLast = --preheader_end;
-					errs()<<"secondlast = "<<*thirdLast<<"\n";	
+	//				errs()<<"secondlast = "<<*thirdLast<<"\n";	
 					Value *rhs = thirdLast->getOperand(0);
 					int u = unroll_var_inverse[rhs];
-                    errs() << "Current Unroll#: " << u <<"\n";
-                    errs() << "Current RHS#: " << *rhs <<"\n";
+          //          errs() << "Current Unroll#: " << u <<"\n";
+            //        errs() << "Current RHS#: " << *rhs <<"\n";
 					build_ir.SetInsertPoint(BB->getFirstNonPHI());
-		            errs() << "Inserting Load: " << (*(Value*)induction_map[u+1])<<"\n";
+	//	            errs() << "Inserting Load: " << (*(Value*)induction_map[u+1])<<"\n";
                     LoadInst* l = build_ir.CreateLoad((Value*)induction_map[u+1]);
-					errs()<<"key = "<<*rhs<<"\tvalue = "<<*((Value*)l)<<"\n";
+	//				errs()<<"key = "<<*rhs<<"\tvalue = "<<*((Value*)l)<<"\n";
 					renaming_map.insert(make_pair(rhs,(Value*)l));
                     rename_BB_map.insert(make_pair((Value*)l, thirdLast->getParent()));
-                    errs()<<",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n";
+          //          errs()<<",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n";
 				}
 			}
 		}
@@ -340,7 +332,7 @@ namespace{
                                         PHINode *PN = dyn_cast<PHINode>(U);
                                         for(int op = 0; op < PN->getNumIncomingValues(); op++){
                                                 if(renaming_map.find(PN->getIncomingValue(op))!= renaming_map.end()){
-                            						errs() << "Trying to rename" << *II << "\n";	
+            //                						errs() << "Trying to rename" << *II << "\n";	
                                                     PN->setIncomingValue(op,renaming_map[PN->getIncomingValue(op)]);
                                                 }
                                         }
@@ -350,7 +342,7 @@ namespace{
                                                 if(renaming_map.find(II->getOperand(op)) != renaming_map.end() && 
                                                         DT->dominates(rename_BB_map[renaming_map[II->getOperand(op)]],II->getParent())){
                                                         II->setOperand(op,renaming_map[II->getOperand(op)]);
-                                                        errs() << "Trying to rename" << *II << "\n";
+              //                                          errs() << "Trying to rename" << *II << "\n";
                                                         string block_name = (std::string)(BB)->getName();
                                         	}
                                 	}
@@ -358,27 +350,27 @@ namespace{
                 	}
 		}	
 	
-        errs() << "Test1 \n";    
+//        errs() << "Test1 \n";    
         preheader_end = p->end();
         secondLast = --preheader_end;
         build_ir.SetInsertPoint(secondLast);
         AllocaInst * flag = build_ir.CreateAlloca(Type::getInt1Ty(getGlobalContext()),0,"flag");
         build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
 
-        errs() << "Test2 \n";  
+  //      errs() << "Test2 \n";  
         BasicBlock* trace_begin = *(t.begin());
         BasicBlock::iterator trace_bb_end = trace_begin->end();
         secondLast = --trace_bb_end;
         build_ir.SetInsertPoint(secondLast);
         build_ir.CreateStore(ConstantInt::getFalse(getGlobalContext()), flag);
 
-	errs() << "Test3 \n";
+//	errs() << "Test3 \n";
         trace::iterator ttt = t.end();
         --ttt;
         BasicBlock* trace_last = *(ttt);
         trace_bb_end = trace_last->end();
         secondLast = --trace_bb_end;
-        errs() << "SecondLast = " << *secondLast << "\n";
+  //      errs() << "SecondLast = " << *secondLast << "\n";
         build_ir.SetInsertPoint(secondLast);
         build_ir.CreateStore(ConstantInt::getTrue(getGlobalContext()), flag);	
 	
@@ -472,7 +464,7 @@ namespace{
 		trace::iterator tmp = t.end();
 		tmp--;
 		BasicBlock* last = *(tmp);
-		errs()<<"first basic block - "<< (*(t.begin()))->getName() <<"\tlast basic block - "<<last->getName()<<"\n";
+//		errs()<<"first basic block - "<< (*(t.begin()))->getName() <<"\tlast basic block - "<<last->getName()<<"\n";
 		for(succ_iterator succ = succ_begin(last);succ != succ_end(last);succ++){
 			if(*succ == *(t.begin()))
 				return true;
@@ -482,10 +474,10 @@ namespace{
 	
 	void printTrace(trace t)
 	{
-		errs()<<"Printing trace\n";
+//		errs()<<"Printing trace\n";
 		for(trace::iterator itr = t.begin();itr!=t.end();itr++)
                 {
-                        errs()<<"trace BB = "<<(*itr)->getName()<<"\n";
+  //                      errs()<<"trace BB = "<<(*itr)->getName()<<"\n";
                 }
 	}
 	bool isPresentInTrace(trace t,BasicBlock* bb)

@@ -1,0 +1,14 @@
+digraph "CFG for 'main' function" {
+	label="CFG for 'main' function";
+
+	Node0x299ee70 [shape=record,label="{entry:\l  %arrayidx = getelementptr inbounds i8** %argv, i64 1\l  %0 = load i8** %arrayidx, align 8\l  %call = call i32 (...)* @atoi(i8* %0)\l  br label %for.cond\l}"];
+	Node0x299ee70 -> Node0x299eed0;
+	Node0x299eed0 [shape=record,label="{for.cond:                                         \l  %y.0 = phi i32 [ 0, %entry ], [ %add, %for.inc ]\l  %i.0 = phi i32 [ 0, %entry ], [ %inc, %for.inc ]\l  %cmp = icmp slt i32 %i.0, 10000\l  br i1 %cmp, label %for.body, label %for.end\l|{<s0>T|<s1>F}}"];
+	Node0x299eed0:s0 -> Node0x299dce0;
+	Node0x299eed0:s1 -> Node0x299dda0;
+	Node0x299dce0 [shape=record,label="{for.body:                                         \l  %call1 = call i32 (...)* bitcast (i32 (i32)* @func to i32 (...)*)(i32 %call)\l  %add = add nsw i32 %y.0, %call1\l  br label %for.inc\l}"];
+	Node0x299dce0 -> Node0x299dd40;
+	Node0x299dd40 [shape=record,label="{for.inc:                                          \l  %inc = add nsw i32 %i.0, 1\l  br label %for.cond\l}"];
+	Node0x299dd40 -> Node0x299eed0;
+	Node0x299dda0 [shape=record,label="{for.end:                                          \l  %call2 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([13 x i8]* @.str, i32 0, i32 0), i32 %y.0)\l  ret i32 0\l}"];
+}
