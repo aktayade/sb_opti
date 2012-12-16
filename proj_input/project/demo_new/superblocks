@@ -1,0 +1,8 @@
+Function main
+for.cond for.body for.inc yes
+entry no
+for.end no
+Function func
+entry if.else if.end if.else19 if.end21 no
+if.then18 no
+if.then no

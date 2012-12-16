@@ -72,9 +72,9 @@ namespace{
 	//	errs()<<"Starting induction variable optimization\n";
 		for (itr = traces.begin(); itr != traces.end(); ++itr) {
 			if(backedge[*itr]){
-	//			errs()<<"Current trace : \n";
+				errs()<<"Current trace : \n";
 		        	printTrace(*itr);
-				induction_variable(*itr,1);
+				induction_variable(*itr,3);
 			}
                 }
 		CurFunc = NULL;
@@ -132,6 +132,8 @@ namespace{
 	}
 	
 	void induction_variable(trace t,int unroll_count){
+		if(unroll_count == 0)
+			return;
 		unroll_count = (int)pow(2,unroll_count);
 		BasicBlock* first = *(t.begin());
 		BasicBlock* p = L->getLoopFor(first)->getLoopPreheader();
@@ -474,10 +476,10 @@ namespace{
 	
 	void printTrace(trace t)
 	{
-//		errs()<<"Printing trace\n";
+		errs()<<"Printing trace\n";
 		for(trace::iterator itr = t.begin();itr!=t.end();itr++)
                 {
-  //                      errs()<<"trace BB = "<<(*itr)->getName()<<"\n";
+                        errs()<<"trace BB = "<<(*itr)->getName()<<"\n";
                 }
 	}
 	bool isPresentInTrace(trace t,BasicBlock* bb)

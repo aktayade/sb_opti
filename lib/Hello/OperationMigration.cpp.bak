@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-#define DEBUG_TYPE "hello"
+#define DEBUG_TYPE "op"
 #include <iostream>
 #include "llvm/Pass.h"
 #include "llvm/Function.h"
@@ -39,15 +39,16 @@ typedef std::map<std::pair<Instruction*, Instruction*>*, unsigned int> LampMap;
 typedef std::list<BasicBlock *> trace;
 
 namespace{
-  struct Hello : public FunctionPass {
+  struct OperationMigration : public FunctionPass {
     static char ID; // Pass identification, replacement for typeid
     double threshold;
-    Hello() : FunctionPass(ID) {}
+    OperationMigration() : FunctionPass(ID) {}
 	ProfileInfo* PI;
 	LAMPLoadProfile * LP;
 	DominatorTree *DT;
 	Function *CurFunc;
 	LoopInfo *L;
+	std::map<trace,bool> backedge;
 	virtual bool runOnFunction(Function &F) {
 		PI = &getAnalysis<ProfileInfo>();
 		DT = &getAnalysis<DominatorTree>();
@@ -55,27 +56,73 @@ namespace{
 		L = &getAnalysis<LoopInfo>();
 		threshold = 60;
 		std::list<trace>::iterator itr;
-		list<trace> traces = getTraces(threshold);
-		writeTracesToFile(traces);
-		BasicBlock * side_entrance;
-		for (itr = traces.begin(); itr != traces.end(); ++itr) {
-			printTrace(*itr);
-			side_entrance = getFirstSideEntrance(*itr);
-			if(side_entrance != NULL)
-			{
-				replicateRestOfTrace(*itr,side_entrance);
-			}
-		}
-//		operationMigration(traces);
-//		loop_unroll(traces);
+		list<trace> traces = readTracesFromFile();
+		operationMigration(traces);
 		CurFunc = NULL;
-//		errs()<<"Finished\n";
 	        return false;
         }
+	list<trace> readTracesFromFile(){
+                ifstream is ("superblocks");
+                string line,word;
+                list<trace> traces;
+		string function_name;
+                if(is.is_open()){
+                        while(is.good()){
+                                getline(is,line);
+                                int pos = 0;
+                                if(line.size() == 0){
+                                        break;
+                                }
+				if(line.find("Function") != std::string::npos ){
+					function_name = line.substr(9,line.size());
+					continue;
+				}
+				if(function_name != CurFunc->getName()){
+					continue;
+				}
+                                trace t1,t2;
+				int trace_length = 0;
+                                while(line.find(" ",pos) != -1){
+                                        int end = line.find(" ",pos);
+                                        word = line.substr(pos,end-pos);
+                                        pos = end+1;
+                                        for (Function::iterator BB = CurFunc->begin(), e = CurFunc->end(); BB != e; ++BB){
+                                                if(word.compare((BB->getName()).data()) == 0){
+							if(trace_length < 3){
+	                                                       t1.push_back(&(*BB));
+							}
+							else{
+								t2.push_back(&(*BB));
+							}
+							trace_length++;
+                                                }
+                                        }
+                                }
+				traces.push_back(t1);
+				if(trace_length > 3){
+					traces.push_back(t2);
+				}
+                                word = line.substr(pos,line.size()-pos);
+                                if(word.compare("yes")==0){
+                                        backedge.insert(make_pair(t1,true));
+					if(trace_length > 3){
+						backedge.insert(make_pair(t2,true));
+                                	}
+                                }
+                                else{
+                                        backedge.insert(make_pair(t1,false));
+					if(trace_length > 3){
+                                 	       backedge.insert(make_pair(t2,false));
+                                	}
+                                }
+                        }
+                }
+                return traces;
+        }
+
 	void writeTracesToFile(list<trace> traces){
 		ofstream os;
-		os.open("superblocks",fstream::app);
-		os<< "Function "<<(CurFunc->getName()).data()<<"\n";
+		os.open("superblocks");
 		std::list<trace>::iterator itr;
 		bool first;
 		for(itr = traces.begin(); itr!=traces.end();itr++){
@@ -111,8 +158,8 @@ namespace{
 			if(hasBackedge(*itr)){
 //				errs()<< "trace with backedge -\n";
 				printTrace(*itr);
-				unroll(*itr,3);
-//				induction_variable(*itr,0);
+				unroll(*itr,1);
+//				induction_variable(*itr,2);
 			}
 		}
 	}
@@ -261,33 +308,33 @@ namespace{
 		bool inside_trace = false;
 		for(itr = t.begin();itr != t.end();itr++){
 			for(BasicBlock::iterator II = (*itr)->begin();II!=(*itr)->end();II++){
-//				errs() << "Opcode = " << II->getOpcode() << "\n";
+				errs() << "Opcode = " << II->getOpcode() << "\n";
 		                if((II->getOpcode() >= 1 && II->getOpcode() <= 7) || (II->getOpcode()>=26 && II->getOpcode()<=32) || II->getOpcode() == 48)
 					continue;
 				lhs = (Value*)II;
-//				errs() << "Value of lhs: " << lhs->getName() << "\n";
+				errs() << "Value of lhs: " << lhs->getName() << "\n";
 				inside_trace = false;
 				for (Value::use_iterator i = lhs->use_begin(), e = lhs->use_end(); i != e; ++i){
 					if (Instruction *Inst = dyn_cast<Instruction>(*i)) {
 						if(find(t.begin(),t.end(),Inst->getParent()) != t.end()){
 							inside_trace = true;
-//							errs() << *II << "\t used somewhere in the sb. Opcode = " << II->getOpcode()  <<"\n";
+							errs() << *II << "\t used somewhere in the sb. Opcode = " << II->getOpcode()  <<"\n";
 							break;
 						}
 					}
 				}
 				if(inside_trace == false){
 					//II can be migrated
-//					errs() << *II << " Operation found of migration. Parent is "<<II->getParent()<<"\n";
+					errs() << *II << " Operation found of migration. Parent is "<<II->getParent()<<"\n";
 					moveOut(&(*II),t);
-//			                errs()<<"Moveout done\n";
+			                errs()<<"Moveout done\n";
                     			return;
 			                //break;
 				}
 	                	errs()<<"inner for\n";
 			}
 		}
-//	        errs()<<"Migrate done for trace\n";
+	        errs()<<"Migrate done for trace\n";
 	}
 	void moveOut(Instruction* II, trace t){
 		list<BasicBlock*>::iterator temp = t.end();
@@ -682,18 +729,18 @@ namespace{
 				if(visited.find(next) != visited.end())
 					visited.erase(visited.find(next));
 				visited.insert(std::pair<BasicBlock*,bool>(next,true));
-/*				if(curTrace.size() == 3)
+				if(curTrace.size() == 3)
                     			break;
-*/
+
 
 				current = next;
 			}
 			current = seed;
 			while(true){   
-/*
+
 	                	if(curTrace.size() == 3)
 	        	            break;
-*/
+
   		          	prev = best_predecessor(current,threshold,visited);
 	        	        if(prev == NULL){
 					//errs()<<"Prev = NULL\n";
@@ -832,5 +879,5 @@ namespace{
   };
 }
 
-char Hello::ID = 0;
-static RegisterPass<Hello> X("hello", "Hello World Pass");
+char OperationMigration::ID = 0;
+static RegisterPass<OperationMigration> X("op", "Operation Migration Pass");

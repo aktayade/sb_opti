@@ -1,0 +1,25 @@
+digraph "CFG for 'func' function" {
+	label="CFG for 'func' function";
+
+	Node0x1581100 [shape=record,label="{entry:\l  %add = add nsw i32 %x, 10\l  %add1 = add nsw i32 %x, 3\l  %add2 = add nsw i32 %x, 100\l  %add3 = add nsw i32 %x, 30\l  %add4 = add nsw i32 %x, 1000\l  %add5 = add nsw i32 %x, 300\l  %cmp = icmp eq i32 %add, 0\l  br i1 %cmp, label %if.then, label %if.else\l|{<s0>T|<s1>F}}"];
+	Node0x1581100:s0 -> Node0x1581160;
+	Node0x1581100:s1 -> Node0x1581590;
+	Node0x1581160 [shape=record,label="{if.then:                                          \l  %mul = mul nsw i32 10, %add\l  %mul6 = mul nsw i32 4, %add1\l  %mul7 = mul nsw i32 10, %add2\l  %mul8 = mul nsw i32 4, %add3\l  %mul9 = mul nsw i32 10, %add4\l  %mul10 = mul nsw i32 4, %add5\l  br label %if.end_copy\l}"];
+	Node0x1581160 -> Node0x1581770;
+	Node0x1581590 [shape=record,label="{if.else:                                          \l  br label %if.end\l}"];
+	Node0x1581590 -> Node0x15815f0;
+	Node0x15815f0 [shape=record,label="{if.end:                                           \l  %call = call i32 (...)* @rand()\l  %rem = srem i32 %call, 99\l  %cmp17 = icmp eq i32 %rem, 0\l  br i1 %cmp17, label %if.then18, label %if.else19\l|{<s0>T|<s1>F}}"];
+	Node0x15815f0:s0 -> Node0x1581650;
+	Node0x15815f0:s1 -> Node0x15816b0;
+	Node0x1581650 [shape=record,label="{if.then18:                                        \l  %0 = mul nsw i32 4, %add5\l  %1 = mul nsw i32 10, %add4\l  %2 = mul nsw i32 4, %add3\l  %3 = mul nsw i32 10, %add2\l  %4 = mul nsw i32 6, %add1\l  %5 = mul nsw i32 20, %add\l  br label %if.end21_copy\l}"];
+	Node0x1581650 -> Node0x1581830;
+	Node0x15816b0 [shape=record,label="{if.else19:                                        \l  %6 = mul nsw i32 4, %add5\l  %7 = mul nsw i32 10, %add4\l  %8 = mul nsw i32 4, %add3\l  %9 = mul nsw i32 10, %add2\l  %10 = mul nsw i32 6, %add1\l  %11 = mul nsw i32 20, %add\l  %call20 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([27 x i8]* @.str2, i32 0, i32 0), i32 %11, i32 %10, i32 %9, i32 %8, i32 %7, i32 %6)\l  br label %if.end21\l}"];
+	Node0x15816b0 -> Node0x1581710;
+	Node0x1581710 [shape=record,label="{if.end21:                                         \l  ret i32 undef\l}"];
+	Node0x1581770 [shape=record,label="{if.end_copy:                                      \l  %call_copy = call i32 (...)* @rand()\l  %rem_copy = srem i32 %call_copy, 99\l  %cmp17_copy = icmp eq i32 %rem_copy, 0\l  br i1 %cmp17_copy, label %if.then18, label %if.else19_copy\l|{<s0>T|<s1>F}}"];
+	Node0x1581770:s0 -> Node0x1581650;
+	Node0x1581770:s1 -> Node0x15817d0;
+	Node0x15817d0 [shape=record,label="{if.else19_copy:                                   \l  %call20_copy = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([27 x i8]* @.str2, i32 0, i32 0), i32 %mul, i32 %mul6, i32 %mul7, i32 %mul8, i32 %mul9, i32 %mul10)\l  br label %if.end21_copy\l}"];
+	Node0x15817d0 -> Node0x1581830;
+	Node0x1581830 [shape=record,label="{if.end21_copy:                                    \l  ret i32 undef\l}"];
+}

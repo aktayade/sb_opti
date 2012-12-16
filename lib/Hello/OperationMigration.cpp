@@ -59,6 +59,7 @@ namespace{
 		list<trace> traces = readTracesFromFile();
 		operationMigration(traces);
 		CurFunc = NULL;
+		errs()<<"Completed\n";
 	        return false;
         }
 	list<trace> readTracesFromFile(){
@@ -307,10 +308,13 @@ namespace{
 		Value* lhs;
 		bool inside_trace = false;
 		for(itr = t.begin();itr != t.end();itr++){
-			for(BasicBlock::iterator II = (*itr)->begin();II!=(*itr)->end();II++){
+			for(BasicBlock::iterator II = (*itr)->begin();II!=(*itr)->end();){
 				errs() << "Opcode = " << II->getOpcode() << "\n";
 		                if((II->getOpcode() >= 1 && II->getOpcode() <= 7) || (II->getOpcode()>=26 && II->getOpcode()<=32) || II->getOpcode() == 48)
+				{
+					II++;
 					continue;
+				}
 				lhs = (Value*)II;
 				errs() << "Value of lhs: " << lhs->getName() << "\n";
 				inside_trace = false;
@@ -326,11 +330,16 @@ namespace{
 				if(inside_trace == false){
 					//II can be migrated
 					errs() << *II << " Operation found of migration. Parent is "<<II->getParent()<<"\n";
+					BasicBlock::iterator III = II;
+					III++;
 					moveOut(&(*II),t);
 			                errs()<<"Moveout done\n";
-                    			return;
+					II =III;
+					continue;
+                    			//return;
 			                //break;
 				}
+				II++;
 	                	errs()<<"inner for\n";
 			}
 		}
