@@ -67,7 +67,7 @@ namespace{
 			}
 		}
 //		operationMigration(traces);
-//		loop_unroll(traces);
+		loop_unroll(traces);
 		CurFunc = NULL;
 //		errs()<<"Finished\n";
 	        return false;
@@ -111,7 +111,7 @@ namespace{
 			if(hasBackedge(*itr)){
 //				errs()<< "trace with backedge -\n";
 				printTrace(*itr);
-				unroll(*itr,1);
+				unroll(*itr,3);
 //				induction_variable(*itr,0);
 			}
 		}
