@@ -74,7 +74,7 @@ namespace{
 			if(backedge[*itr]){
 				errs()<<"Current trace : \n";
 		        	printTrace(*itr);
-				induction_variable(*itr,3);
+				induction_variable(*itr,1);
 			}
                 }
 		CurFunc = NULL;
