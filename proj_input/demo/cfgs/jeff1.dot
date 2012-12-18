@@ -1,0 +1,25 @@
+digraph "CFG for 'func' function" {
+	label="CFG for 'func' function";
+
+	Node0x190f210 [shape=record,label="{entry:\l  %add = add nsw i32 %x, 10\l  %cmp = icmp eq i32 %add, 0\l  br i1 %cmp, label %if.then, label %if.else\l|{<s0>T|<s1>F}}"];
+	Node0x190f210:s0 -> Node0x190f690;
+	Node0x190f210:s1 -> Node0x190f6f0;
+	Node0x190f690 [shape=record,label="{if.then:                                          \l  %mul = mul nsw i32 10, %add\l  br label %if.end_copy\l}"];
+	Node0x190f690 -> Node0x190f8d0;
+	Node0x190f6f0 [shape=record,label="{if.else:                                          \l  %mul1 = mul nsw i32 20, %add\l  br label %if.end\l}"];
+	Node0x190f6f0 -> Node0x190f750;
+	Node0x190f750 [shape=record,label="{if.end:                                           \l  %call = call i32 (...)* @rand()\l  %rem = srem i32 %call, 99\l  %cmp2 = icmp eq i32 %rem, 0\l  br i1 %cmp2, label %if.then3, label %if.else5\l|{<s0>T|<s1>F}}"];
+	Node0x190f750:s0 -> Node0x190f7b0;
+	Node0x190f750:s1 -> Node0x190f810;
+	Node0x190f7b0 [shape=record,label="{if.then3:                                         \l  %call4 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([3 x i8]* @.str2, i32 0, i32 0), i32 0)\l  br label %if.end7_copy\l}"];
+	Node0x190f7b0 -> Node0x190f990;
+	Node0x190f810 [shape=record,label="{if.else5:                                         \l  %call6 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([15 x i8]* @.str3, i32 0, i32 0), i32 %mul1, i32 0)\l  br label %if.end7\l}"];
+	Node0x190f810 -> Node0x190f870;
+	Node0x190f870 [shape=record,label="{if.end7:                                          \l  ret i32 undef\l}"];
+	Node0x190f8d0 [shape=record,label="{if.end_copy:                                      \l  %call_copy = call i32 (...)* @rand()\l  %rem_copy = srem i32 %call_copy, 99\l  %cmp2_copy = icmp eq i32 %rem_copy, 0\l  br i1 %cmp2_copy, label %if.then3, label %if.else5_copy\l|{<s0>T|<s1>F}}"];
+	Node0x190f8d0:s0 -> Node0x190f7b0;
+	Node0x190f8d0:s1 -> Node0x190f930;
+	Node0x190f930 [shape=record,label="{if.else5_copy:                                    \l  %call6_copy = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([15 x i8]* @.str3, i32 0, i32 0), i32 %mul, i32 0)\l  br label %if.end7_copy\l}"];
+	Node0x190f930 -> Node0x190f990;
+	Node0x190f990 [shape=record,label="{if.end7_copy:                                     \l  ret i32 undef\l}"];
+}

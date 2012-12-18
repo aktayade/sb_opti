@@ -1,0 +1,8 @@
+Function main
+for.cond for.body for.inc yes
+entry no
+for.end no
+Function func
+entry if.else if.end if.else5 if.end7 no
+if.then3 no
+if.then no

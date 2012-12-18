@@ -39,11 +39,6 @@ typedef std::map<std::pair<Instruction*, Instruction*>*, unsigned int> LampMap;
 typedef std::list<BasicBlock *> trace;
 
 namespace{
-  struct basicblock_bias{
-	BasicBlock* next;
-	double bias;
-  };
-
   struct Hello : public FunctionPass {
     static char ID; // Pass identification, replacement for typeid
     double threshold;
@@ -58,7 +53,7 @@ namespace{
 		DT = &getAnalysis<DominatorTree>();
 		CurFunc = &F;
 		L = &getAnalysis<LoopInfo>();
-		threshold = .8;
+		threshold = 60;
 		std::list<trace>::iterator itr;
 		list<trace> traces = getTraces(threshold);
 		writeTracesToFile(traces);
@@ -674,19 +669,14 @@ namespace{
 				visited.erase(visited.find(seed));
 			visited.insert(std::pair<BasicBlock*,bool>(seed,true));
 			current =seed;
-			double cumulative = 1;
 			while(true)
 			{
-				basicblock_bias b = best_successor(current,threshold,visited);
-				next = b.next;
+				next = best_successor(current,threshold,visited);
 				if(next == NULL)
 				{
 					//errs()<<"Next = NULL\n";
 					break;
 				}
-				cumulative = cumulative * b.bias;
-				if(cumulative < threshold)
-					break;
 				//errs()<<"Next = "<<next->getName()<<"\n";
 				curTrace.push_back(next);
 				if(visited.find(next) != visited.end())
@@ -695,6 +685,7 @@ namespace{
 /*				if(curTrace.size() == 3)
                     			break;
 */
+
 				current = next;
 			}
 			current = seed;
@@ -703,15 +694,11 @@ namespace{
 	                	if(curTrace.size() == 3)
 	        	            break;
 */
-				basicblock_bias b = best_predecessor(current,threshold,visited);
-  		          	prev = b.next;
+  		          	prev = best_predecessor(current,threshold,visited);
 	        	        if(prev == NULL){
 					//errs()<<"Prev = NULL\n";
                                 	break;
 				}
-				cumulative = cumulative * b.bias;
-				if(cumulative < threshold)
-					break;
 		                curTrace.push_front(prev);
         	        	//errs()<<"Prev = "<<prev->getName()<<"\n";
 				if(visited.find(prev) != visited.end())
@@ -750,7 +737,7 @@ namespace{
 		}
 		return true;
 	}
-	basicblock_bias best_successor(BasicBlock* source,double threshold,map<BasicBlock*,bool> visited)
+	BasicBlock* best_successor(BasicBlock* source,double threshold,map<BasicBlock*,bool> visited)
 	{
 		double total_weight = 0;
                 double max_weight = 0;
@@ -759,12 +746,9 @@ namespace{
 //		if(b->getTerminator()->getNumSuccessors() <= 1)
 //                        continue;
                 int exec_count = PI->getExecutionCount(source);
-		basicblock_bias b;
                 if (exec_count <= 0)
 		{
-			b.next = NULL;
-			b.bias = 0;
-                        return b;
+                        return NULL;
 		}
                 for (succ_iterator S = succ_begin(source), E = succ_end(source); S != E; ++S) {
                         BasicBlock *dest = *S;
@@ -781,41 +765,31 @@ namespace{
                 }
 		if(total_weight == 0)
 		{
-			b.next = NULL;
-			b.bias = 0;
-			return b;
+			return NULL;
 		}
 		else
 		{
-			bias_percent = (max_weight/total_weight);
-			errs()<<"bias_percent="<<bias_percent<<"\n";
-			if(visited[max_succ] || DT->dominates(max_succ,source))
+			bias_percent = (max_weight/total_weight)*100;
+			if(bias_percent < threshold || visited[max_succ] || DT->dominates(max_succ,source))
 			{
-				b.next = NULL;
-				b.bias = 0;
-				return b;
+				return NULL;
 			}
 			else
 			{
-				b.next = max_succ;
-				b.bias = bias_percent;
-				return b;
+				return max_succ;
 			}
 		}
 	}
-	basicblock_bias best_predecessor(BasicBlock* source,double threshold,map<BasicBlock*,bool> visited)
+	BasicBlock* best_predecessor(BasicBlock* source,double threshold,map<BasicBlock*,bool> visited)
         {
                 double total_weight = 0;
                 double max_weight = 0;
 		double edge_weight,bias_percent;
                 BasicBlock* max_pred=NULL;
-		basicblock_bias b;
 		int exec_count = PI->getExecutionCount(source);
                 if (exec_count <= 0)
 		{
-			b.next = NULL;
-			b.bias = 0;
-                        return b;
+                        return NULL;
 		}
                 for (pred_iterator S = pred_begin(source), E = pred_end(source); S != E; ++S) {
                         BasicBlock *dest = *S;
@@ -832,25 +806,18 @@ namespace{
                 }
                 if(total_weight == 0)
 		{
-			b.next = NULL;
-			b.bias = 0;
-                        return b;
+                        return NULL;
 		}
                 else
                 {
-                        bias_percent = (max_weight/total_weight);
-			errs()<<"bias_percent="<<bias_percent<<"\n";
-                        if(visited[max_pred] ||  DT->dominates(source,max_pred))
+                        bias_percent = (max_weight/total_weight)*100;
+                        if(bias_percent < threshold || visited[max_pred] ||  DT->dominates(source,max_pred))
 			{
-				b.next = NULL;
-				b. bias = 0;
-                                return b;
+                                return NULL;
 			}
                         else
 			{
-				b.next = max_pred;
-				b.bias = bias_percent;	
-                                return b;
+                                return max_pred;
 			}
                 }
         }
