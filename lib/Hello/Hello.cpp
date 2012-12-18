@@ -66,6 +66,8 @@ namespace{
 				replicateRestOfTrace(*itr,side_entrance);
 			}
 		}
+		BranchTargetExp(traces);
+		
 //		operationMigration(traces);
 		loop_unroll(traces);
 		CurFunc = NULL;
@@ -821,6 +823,103 @@ namespace{
 			}
                 }
         }
+
+	void  BranchTargetExp( list<trace> traces ){
+	//Given a list of superblocks, returns a list of such superblocks that can be merged together
+        unsigned int threshold_size = 10;
+	list< list<trace> > result;
+	list<trace> :: iterator t; //Iterator over traces in a list of traces, so each element t points to is a trace
+        for( t = traces.begin(); t != traces.end() ; t++){
+                list<trace> temp;
+                temp.push_back(*t);
+		for( trace::iterator block = (*t).begin(), te=(*t).end(); block != te; block++){
+			
+			for(BasicBlock :: iterator inst = (*block)->begin(), ie = (*block)->end(); inst != ie; inst++){
+                                 
+                               if(inst->getOpcode() == 2){
+					
+					//errs()<<" Instruction is : "<<(*inst)<<"\n";
+					if(inst->getNumOperands()==1){
+						
+						//errs()<<inst->getOperand(0)->getName()<<"\n";
+                                                list<trace> :: iterator t1;
+						//++t1;
+                                                for(t1 = traces.begin() ; t1 != traces.end() &&(*t1) != (*t); t1++){
+                                                    for( trace :: iterator block1 = (*t1).begin(), te1 = (*t1).end(); block1 != te1; block1++){
+                                                        if( (*block1)->getName() == inst->getOperand(0)->getName()){
+								 
+								    if(find(temp.begin(), temp.end(), *t1) == temp.end() ){
+                                                                           //errs()<<"Pushing Trace beginning with"<<(*block1)->getName();
+									   temp.push_back(*t1);
+                                                                     break;
+								}
+							}
+
+						   }
+						}
+
+					}else{
+                                      // We now have two operands...and we decide which superblock to merge with based on the execution count of the basic blocks
+                                              //errs()<<inst->getOperand(0)->getName()<<"\t"<<inst->getOperand(1)->getName()<<"\t"<<inst->getOperand(2)->getName()<<"\n";
+                                              float count1 = PI->getEdgeWeight(PI->getEdge((*block),(BasicBlock*)inst->getOperand(1)));
+					      float count2 = PI->getEdgeWeight(PI->getEdge((*block),(BasicBlock*)inst->getOperand(2)));
+					 // errs()<<"These are the execution counts " << inst->getOperand(1)->getName() << count1 << " " << inst->getOperand(2)->getName() << count2 << "\n";
+                                              if(count1 < count2){
+                                                  list<trace> :: iterator t2 ;
+						  //t2++;
+                                                  for(t2 = traces.begin(); t2 != traces.end() && (*t2) != (*t); t2++){
+						     for( trace :: iterator block2 = (*t2).begin(), te2 = (*t2).end(); block2 != te2; block2++){
+                                                          if( (*block2)->getName() == inst->getOperand(2)->getName()){
+                                                               if(find(temp.begin(),temp.end(), *t2) == temp.end() ) {
+									temp.push_back(*t2);
+									break;
+								}
+							  }
+                                                     
+						    }
+
+						 }
+
+                                               }else{
+                                                 list<trace> :: iterator t3;
+						  //t3++;
+						 for(t3 = traces.begin() ; t3 != traces.end() && (*t3) != (*t) ; t3++){
+                                                    for( trace :: iterator block3 = (*t3).begin(), te3 = (*t3).end(); block3 != te3; block3++){                                               
+                                                         if( (*block3)->getName() == inst->getOperand(1)->getName()){
+                                                               if(find(temp.begin(), temp.end(), *t3) == temp.end() ) {
+									temp.push_back(*t3);
+									break;
+   								}
+						         }
+
+						   }
+					         }
+                                               }
+           
+                                       }
+
+                               }
+			}
+           	 }
+             result.push_front(temp);
+            // errs() << temp.front() <<"\t"<< temp.back() <<"\n";
+           if(temp.size() < threshold_size){ 
+		errs()<<" The following superblocks  can be merged"<<"\n";  
+           //errs()<<"///////////////////////////////////////////////////////////////////////////\n";
+	    for(list<trace> :: iterator tl = temp.begin(); tl != temp.end() ; tl++){
+                   for( trace :: iterator b = (*tl).begin(), tle = (*tl).end(); b != tle;  b++)
+			errs()<<(*b)->getName()<<"\t";
+              errs()<<"\n--------------------------------------------------------------\n";
+            }
+	  }
+           // errs()<<"\n------------------------------------------------------------------------------\n";
+          //errs()<<" Pushed one trace set into trace list" << "\n";
+        }
+
+       //return result;
+       //Print the contents of result
+       //printResult(result);
+       }
 
 	void getAnalysisUsage(AnalysisUsage &AU) const {
 		AU.addRequired<ProfileInfo>();

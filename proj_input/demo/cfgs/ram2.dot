@@ -1,0 +1,25 @@
+digraph "CFG for 'main' function" {
+	label="CFG for 'main' function";
+
+	Node0x14ec040 [shape=record,label="{entry:\l  %call = call i32 @gettimeofday(%struct.timeval* @t_start, %struct.timezone* null) nounwind\l  br label %for.cond\l}"];
+	Node0x14ec040 -> Node0x14eae50;
+	Node0x14eae50 [shape=record,label="{for.cond:                                         \l  %a.0 = phi i32 [ 0, %entry ], [ %add2, %for.inc_copy ], [ %add3, %for.inc ]\l  %i.0 = phi i32 [ 1, %entry ], [ %add4_copy, %for.inc_copy ], [ %add4, %for.inc ]\l  %cmp = icmp sle i32 %i.0, 30000\l  br i1 %cmp, label %for.body, label %for.end\l|{<s0>T|<s1>F}}"];
+	Node0x14eae50:s0 -> Node0x14eaeb0;
+	Node0x14eae50:s1 -> Node0x14e8040;
+	Node0x14eaeb0 [shape=record,label="{for.body:                                         \l  %add = add nsw i32 %a.0, %i.0\l  %rem = srem i32 %add, 10\l  %cmp1 = icmp eq i32 %rem, 0\l  br i1 %cmp1, label %if.then, label %if.else\l|{<s0>T|<s1>F}}"];
+	Node0x14eaeb0:s0 -> Node0x14eaf10;
+	Node0x14eaeb0:s1 -> Node0x14eaf70;
+	Node0x14eaf10 [shape=record,label="{if.then:                                          \l  %add2 = add nsw i32 %add, 3\l  br label %if.end_copy\l}"];
+	Node0x14eaf10 -> Node0x14e80a0;
+	Node0x14eaf70 [shape=record,label="{if.else:                                          \l  %add3 = add nsw i32 %add, 5\l  br label %if.end\l}"];
+	Node0x14eaf70 -> Node0x14eafd0;
+	Node0x14eafd0 [shape=record,label="{if.end:                                           \l  br label %for.inc\l}"];
+	Node0x14eafd0 -> Node0x14eb030;
+	Node0x14eb030 [shape=record,label="{for.inc:                                          \l  %add4 = add nsw i32 %i.0, 2\l  br label %for.cond\l}"];
+	Node0x14eb030 -> Node0x14eae50;
+	Node0x14e8040 [shape=record,label="{for.end:                                          \l  %call5 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([3 x i8]* @.str, i32 0, i32 0), i32 %a.0)\l  %call6 = call i32 @gettimeofday(%struct.timeval* @t_end, %struct.timezone* null) nounwind\l  %0 = load i64* getelementptr inbounds (%struct.timeval* @t_end, i32 0, i32 0), align 8\l  %1 = load i64* getelementptr inbounds (%struct.timeval* @t_start, i32 0, i32 0), align 8\l  %sub = sub nsw i64 %0, %1\l  %conv = sitofp i64 %sub to double\l  %2 = load i64* getelementptr inbounds (%struct.timeval* @t_end, i32 0, i32 1), align 8\l  %3 = load i64* getelementptr inbounds (%struct.timeval* @t_start, i32 0, i32 1), align 8\l  %sub7 = sub nsw i64 %2, %3\l  %conv8 = sitofp i64 %sub7 to double\l  %div = fdiv double %conv8, 1.000000e+06\l  %add9 = fadd double %conv, %div\l  store double %add9, double* @t_diff, align 8\l  %4 = load double* @t_diff, align 8\l  %call10 = call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([31 x i8]* @.str1, i32 0, i32 0), double %4)\l  ret i32 %a.0\l}"];
+	Node0x14e80a0 [shape=record,label="{if.end_copy:                                      \l  br label %for.inc_copy\l}"];
+	Node0x14e80a0 -> Node0x14e8100;
+	Node0x14e8100 [shape=record,label="{for.inc_copy:                                     \l  %add4_copy = add nsw i32 %i.0, 2\l  br label %for.cond\l}"];
+	Node0x14e8100 -> Node0x14eae50;
+}
